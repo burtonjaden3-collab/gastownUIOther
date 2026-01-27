@@ -48,7 +48,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "This pairs with US-001. Even after fixing commands in US-004/005/006, this safeguard prevents future bad commands from cascading."
     },
     {
