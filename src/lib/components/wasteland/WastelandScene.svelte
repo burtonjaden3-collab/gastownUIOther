@@ -1,0 +1,93 @@
+<script lang="ts">
+	import { T, useThrelte } from '@threlte/core';
+	import * as THREE from 'three';
+	import DesertFloor from './DesertFloor.svelte';
+	import CitadelGroup from './CitadelGroup.svelte';
+	import { WASTELAND } from './colors';
+
+	type LoadBand = 'low' | 'moderate' | 'high' | 'critical';
+
+	interface Props {
+		load?: number;
+	}
+
+	const { load = 0 }: Props = $props();
+
+	const { scene, size } = useThrelte();
+
+	const aspect = $derived(size.current.width / Math.max(size.current.height, 1));
+	const frustumH = 8;
+	const frustumW = $derived(frustumH * aspect);
+
+	const band = $derived<LoadBand>(
+		load > 80 ? 'critical' : load > 60 ? 'high' : load > 30 ? 'moderate' : 'low'
+	);
+
+	function interpolateHorizon(l: number): string {
+		if (l <= 30) return WASTELAND.sky.horizon;
+		if (l <= 60) {
+			const t = (l - 30) / 30;
+			const c = new THREE.Color();
+			c.lerpColors(new THREE.Color(WASTELAND.sky.horizon), new THREE.Color(WASTELAND.sky.highLoad), t);
+			return '#' + c.getHexString();
+		}
+		if (l <= 80) {
+			const t = (l - 60) / 20;
+			const c = new THREE.Color();
+			c.lerpColors(new THREE.Color(WASTELAND.sky.highLoad), new THREE.Color(WASTELAND.sky.critical), t);
+			return '#' + c.getHexString();
+		}
+		return WASTELAND.sky.critical;
+	}
+
+	const horizonColor = $derived(interpolateHorizon(load));
+
+	// Sky gradient background — reactive to load via horizonColor
+	$effect(() => {
+		const canvas = document.createElement('canvas');
+		canvas.width = 2;
+		canvas.height = 256;
+		const ctx = canvas.getContext('2d')!;
+		const grad = ctx.createLinearGradient(0, 0, 0, 256);
+		grad.addColorStop(0, WASTELAND.sky.top);
+		grad.addColorStop(1, horizonColor);
+		ctx.fillStyle = grad;
+		ctx.fillRect(0, 0, 2, 256);
+		const tex = new THREE.CanvasTexture(canvas);
+		scene.background = tex;
+
+		return () => {
+			tex.dispose();
+			scene.background = null;
+		};
+	});
+</script>
+
+<!-- Orthographic camera: manual frustum (Threlte auto-sizes to pixels without manual) -->
+<T.OrthographicCamera
+	makeDefault
+	manual
+	left={-frustumW / 2}
+	right={frustumW / 2}
+	top={frustumH / 2}
+	bottom={-frustumH / 2}
+	near={0.1}
+	far={100}
+	position={[0, 1, 20]}
+	oncreate={(ref) => ref.lookAt(0, 1, 0)}
+/>
+
+<!-- Hemisphere light: warm sky, cool ground — fills shadows naturally -->
+<T.HemisphereLight args={['#c4836a', '#3d2517', 0.6]} />
+
+<!-- Ambient light with warm tint -->
+<T.AmbientLight intensity={0.5} color={WASTELAND.light.warm} />
+
+<!-- Key light from top-left -->
+<T.DirectionalLight intensity={1.0} position={[-5, 8, 5]} />
+
+<!-- Fill light from right to reveal citadel side faces -->
+<T.DirectionalLight intensity={0.4} position={[10, 3, 8]} />
+
+<DesertFloor />
+<CitadelGroup {load} {band} />

@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   GAS TOWN - MAD MAX DESIGN SYSTEM
+   Industrial Post-Apocalyptic Theme
+   ============================================ */
+
+@layer base {
+	:root {
+		/* Status indicators */
+		--status-online: 142 71% 45%;
+		--status-offline: 0 72% 51%;
+		--status-busy: 38 92% 50%;
+		--status-idle: 217 91% 60%;
+
+		/* Touch targets - WCAG AAA */
+		--touch-target-min: 48px;
+
+		/* Transitions */
+		--transition-fast: 150ms;
+		--transition-normal: 250ms;
+		--transition-slow: 400ms;
+	}
+
+	/* Industrial scrollbar */
+	::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+
+	::-webkit-scrollbar-track {
+		background: theme('colors.oil.900');
+		border-left: 1px solid theme('colors.oil.800');
+	}
+
+	::-webkit-scrollbar-thumb {
+		background: theme('colors.chrome.700');
+		border-radius: 2px;
+	}
+
+	::-webkit-scrollbar-thumb:hover {
+		background: theme('colors.chrome.600');
+	}
+
+	/* Focus styles */
+	*:focus-visible {
+		outline: 2px solid theme('colors.rust.500');
+		outline-offset: 2px;
+	}
+
+	/* Selection */
+	::selection {
+		background: theme('colors.rust.500');
+		color: white;
+	}
+}
+
+@layer components {
+	/* Industrial panel - like a control room display */
+	.panel {
+		@apply bg-oil-900 border border-oil-700 rounded-sm;
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.05),
+			0 4px 12px rgba(0, 0, 0, 0.4);
+	}
+
+	.panel-header {
+		@apply bg-oil-800 px-4 py-2 border-b border-oil-700;
+		@apply font-stencil text-lg uppercase tracking-wider text-chrome-300;
+	}
+
+	/* Hazard stripe decoration */
+	.hazard-stripe {
+		height: 4px;
+		background: repeating-linear-gradient(
+			90deg,
+			theme('colors.warning.400'),
+			theme('colors.warning.400') 8px,
+			theme('colors.oil.950') 8px,
+			theme('colors.oil.950') 16px
+		);
+	}
+
+	/* Industrial gauge */
+	.gauge {
+		@apply relative w-full h-2 bg-oil-800 rounded-full overflow-hidden;
+		box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+	}
+
+	.gauge-fill {
+		@apply h-full rounded-full transition-all duration-500;
+	}
+
+	.gauge-fill.online {
+		@apply bg-gradient-to-r from-green-600 to-green-400;
+		box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+	}
+
+	.gauge-fill.warning {
+		@apply bg-gradient-to-r from-warning-600 to-warning-400;
+		box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+	}
+
+	.gauge-fill.danger {
+		@apply bg-gradient-to-r from-red-700 to-red-500;
+		box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+	}
+
+	/* Status indicator light */
+	.status-light {
+		@apply w-3 h-3 rounded-full;
+		box-shadow:
+			inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+			0 0 8px currentColor;
+	}
+
+	.status-light.online {
+		@apply bg-green-500 text-green-500;
+	}
+
+	.status-light.offline {
+		@apply bg-red-500 text-red-500;
+	}
+
+	.status-light.busy {
+		@apply bg-warning-400 text-warning-400 animate-pulse;
+	}
+
+	.status-light.idle {
+		@apply bg-chrome-500 text-chrome-500;
+	}
+
+	/* Riveted edge effect */
+	.riveted {
+		position: relative;
+	}
+
+	.riveted::before {
+		content: '';
+		position: absolute;
+		top: 4px;
+		left: 4px;
+		right: 4px;
+		height: 4px;
+		background: radial-gradient(circle at 8px 2px, theme('colors.chrome.600') 2px, transparent 2px);
+		background-size: 16px 4px;
+		opacity: 0.5;
+	}
+
+	/* Industrial button base */
+	.btn-industrial {
+		@apply relative px-4 py-2 font-stencil uppercase tracking-wider;
+		@apply border-2 transition-all duration-150;
+		@apply active:translate-y-0.5;
+		box-shadow:
+			0 4px 0 rgba(0, 0, 0, 0.3),
+			inset 0 1px 0 rgba(255, 255, 255, 0.1);
+	}
+
+	.btn-industrial:active {
+		box-shadow:
+			0 2px 0 rgba(0, 0, 0, 0.3),
+			inset 0 1px 0 rgba(255, 255, 255, 0.1);
+	}
+}
+
+@layer utilities {
+	/* Text glow effects */
+	.text-glow-rust {
+		text-shadow: 0 0 10px rgba(235, 107, 63, 0.6);
+	}
+
+	.text-glow-warning {
+		text-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+	}
+
+	/* Metal texture overlay */
+	.metal-texture {
+		background-image:
+			linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.02) 50%, transparent 60%),
+			linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, transparent 50%, rgba(0,0,0,0.1) 100%);
+	}
+
+	/* Worn/distressed effect */
+	.worn {
+		position: relative;
+	}
+
+	.worn::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+		opacity: 0.03;
+		pointer-events: none;
+	}
+}

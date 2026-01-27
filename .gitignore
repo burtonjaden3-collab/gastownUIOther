@@ -1,0 +1,17 @@
+node_modules/
+.svelte-kit/
+build/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Debug artifacts
+after-start-rig
+dashboard-home
+debug-hero.cjs
+debug-hero.mjs
+diagnostics-result.png
+AGENTS.md
