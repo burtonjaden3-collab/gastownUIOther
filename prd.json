@@ -65,7 +65,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "gt mq list requires a rig name argument. The SSE loop already has rigNames available from Step 1."
     },
     {

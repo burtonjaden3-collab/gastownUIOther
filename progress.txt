@@ -3,7 +3,7 @@
 Project: GasTownUI
 Branch: ralph/fix-circuit-breaker-false-trips
 Stories: 6
-Completed: 3
+Completed: 4
 
 ## Codebase Patterns
 - CircuitBreaker is in `src/lib/server/cli/circuit-breaker.ts`, ProcessSupervisor in `process-supervisor.ts` — both in the same `cli/` directory
@@ -15,6 +15,8 @@ Completed: 3
 - CircuitBreaker.reset() clears all counters — remember to include new fields there when adding state
 - `COMMAND_ERROR_PATTERNS` is a module-level constant in process-supervisor.ts — add new patterns there when discovering new command-level error strings
 - Error classification in `executeCommand()`: check `!wasKilled` first, then pattern-match stderr — infrastructure errors (killed/timeout/ENOENT) always go to `recordFailure()`
+- `gt mq list` requires a rig name argument — use `gt mq list <rigName> --json` for each rig, never bare `gt mq --json`
+- SSE polling loop has `rigNames` available from Step 1 — reuse it for per-rig commands in later steps
 
 ## 2026-01-26 - US-001
 - What was implemented: Added `recordCommandError()` method to CircuitBreaker that increments a `commandErrorCount` counter without affecting `failureCount` or circuit state. Updated `getStats()` to include the new `commandErrorCount` field. Updated `reset()` to clear the new counter.
@@ -43,4 +45,15 @@ Completed: 3
   - Patterns are compared case-insensitively (lowercase both stderr and patterns) to handle varied CLI output formatting
   - The spawn `'error'` event handler (ENOENT etc.) is separate from the execFile callback — it correctly remains as `recordFailure()` since spawn failures are always infrastructure errors
   - `svelte-check` passed with 0 errors and 0 warnings — clean typecheck
+---
+
+## 2026-01-26 - US-004
+- What was implemented: Fixed `gt mq` command usage in both SSE polling and mergequeue endpoint. In SSE events Step 6, replaced the single `supervisor.gt(['mq', '--json'])` call with a per-rig loop calling `supervisor.gt(['mq', 'list', rigName, '--json'])` for each rig, aggregating results into a single items array. Added guard to skip merge queue polling when `rigNames` is empty. In mergequeue endpoint, added `?rig=` query parameter support — if provided, queries only that rig; otherwise falls back to `getRigNames()` and aggregates across all rigs.
+- Files changed: `src/routes/api/gastown/events/+server.ts`, `src/routes/api/gastown/mergequeue/+server.ts`
+- **Learnings for future iterations:**
+  - `gt mq list` requires a rig name argument — `gt mq --json` alone is invalid syntax and triggers command errors
+  - The SSE polling loop already has `rigNames` available from Step 1 — reuse it rather than calling `getRigNames()` again
+  - The mergequeue endpoint already had correct per-rig `gt mq list` calls from a previous fix — only needed the `?rig=` query param addition
+  - SvelteKit route handlers can destructure `{ url }` from the request event to access query params via `url.searchParams`
+  - `svelte-check` passed with 0 errors and 0 warnings
 ---
