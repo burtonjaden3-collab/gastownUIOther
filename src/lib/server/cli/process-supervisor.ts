@@ -16,6 +16,18 @@ import { ConcurrencyLimiter } from './concurrency-limiter';
 import { CircuitBreaker } from './circuit-breaker';
 
 /**
+ * Patterns in stderr that indicate a command-level error (bad flags, missing DB)
+ * rather than an infrastructure failure. These should NOT trip the circuit breaker.
+ */
+const COMMAND_ERROR_PATTERNS = [
+	'unknown flag',
+	'unknown command',
+	'no beads database found',
+	'error: unknown',
+	'not a valid command'
+];
+
+/**
  * Build the PATH environment variable that includes gt and bd CLI locations.
  */
 function getEnvWithPath(): NodeJS.ProcessEnv {
@@ -144,10 +156,22 @@ export class ProcessSupervisor {
 							return;
 						}
 
-						breaker.recordFailure();
-
 						const isTimeout = error.killed && error.message.includes('ETIMEDOUT');
 						const wasKilled = error.killed;
+
+						// Classify: command-level errors (bad flags, missing DB) should
+						// not trip the circuit breaker — only infrastructure failures should.
+						const stderrLower = (stderr || '').toLowerCase();
+						const isCommandError =
+							!wasKilled &&
+							COMMAND_ERROR_PATTERNS.some((p) => stderrLower.includes(p));
+
+						if (isCommandError) {
+							breaker.recordCommandError();
+						} else {
+							breaker.recordFailure();
+						}
+
 						const errorMessage = isTimeout
 							? `Command timed out after ${timeout}ms`
 							: wasKilled
