@@ -16,6 +16,7 @@ export class CircuitBreaker {
 	private failureCount = 0;
 	private lastFailureTime = 0;
 	private successCount = 0;
+	private commandErrorCount = 0;
 	private readonly threshold: number;
 	private readonly resetTime: number;
 	private readonly halfOpenSuccessThreshold = 2;
@@ -71,10 +72,15 @@ export class CircuitBreaker {
 		}
 	}
 
+	recordCommandError(): void {
+		this.commandErrorCount++;
+	}
+
 	reset(): void {
 		this.state = 'CLOSED';
 		this.failureCount = 0;
 		this.successCount = 0;
+		this.commandErrorCount = 0;
 		this.lastFailureTime = 0;
 	}
 
@@ -86,12 +92,14 @@ export class CircuitBreaker {
 		state: CircuitState;
 		failureCount: number;
 		successCount: number;
+		commandErrorCount: number;
 		lastFailureTime: number;
 	} {
 		return {
 			state: this.state,
 			failureCount: this.failureCount,
 			successCount: this.successCount,
+			commandErrorCount: this.commandErrorCount,
 			lastFailureTime: this.lastFailureTime
 		};
 	}
