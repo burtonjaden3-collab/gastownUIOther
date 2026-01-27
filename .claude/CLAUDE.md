@@ -44,6 +44,14 @@ gastownUIOther/                            # Gas Town UI - SvelteKit 2 + Svelte 
 │   │   │   │                              #   ConvoyCreateForm, ActivityLog
 │   │   │   ├── tasks/                     # DependencyGraph
 │   │   │   ├── wasteland/                 # WastelandHero (3D hero scene: desert, citadel, sky)
+│   │   │   │   ├── Vehicle.svelte         #   Procedural vehicle mesh (status-based colors)
+│   │   │   │   ├── VehicleExhaust.svelte  #   Exhaust particle emitter for vehicles
+│   │   │   │   ├── VehicleConvoy.svelte   #   Maps tasks to positioned vehicles
+│   │   │   │   ├── WarBoy.svelte          #   Agent humanoid figure (capsule+sphere)
+│   │   │   │   ├── WarBoyManager.svelte   #   Maps agents to WarBoy figures
+│   │   │   │   └── particles/             #   Particle systems
+│   │   │   │       ├── DustSystem.svelte  #     Ambient desert dust (load-reactive)
+│   │   │   │       └── SparkSystem.svelte #     Critical load spark bursts
 │   │   │   └── settings/                  # EscalationRoutes, TownInfo
 │   │   │
 │   │   ├── stores/

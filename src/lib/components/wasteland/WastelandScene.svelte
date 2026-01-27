@@ -3,15 +3,20 @@
 	import * as THREE from 'three';
 	import DesertFloor from './DesertFloor.svelte';
 	import CitadelGroup from './CitadelGroup.svelte';
+	import VehicleConvoy from './VehicleConvoy.svelte';
+	import WarBoyManager from './WarBoyManager.svelte';
+	import { DustSystem, SparkSystem } from './particles';
 	import { WASTELAND } from './colors';
 
 	type LoadBand = 'low' | 'moderate' | 'high' | 'critical';
 
 	interface Props {
 		load?: number;
+		tasks?: Array<{ id: string; status: string; type?: string }>;
+		agents?: Array<{ name: string; state: string; assignedTask?: string }>;
 	}
 
-	const { load = 0 }: Props = $props();
+	const { load = 0, tasks = [], agents = [] }: Props = $props();
 
 	const { scene, size } = useThrelte();
 
@@ -107,3 +112,7 @@
 
 <DesertFloor />
 <CitadelGroup {load} {band} />
+<VehicleConvoy {tasks} />
+<WarBoyManager {agents} {tasks} />
+<DustSystem intensity={load / 100} />
+<SparkSystem active={band === 'critical'} />

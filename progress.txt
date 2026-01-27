@@ -3,4 +3,4 @@
 Project: GasTownUI
 Branch: ralph/wasteland-animations-p3-p5
 Stories: 16
-Completed: 0
+Completed: 16
