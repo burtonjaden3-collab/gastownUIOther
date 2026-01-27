@@ -498,23 +498,37 @@ export const GET: RequestHandler = async ({ request }) => {
 						// Mail polling failure is non-fatal
 					}
 
-					// Step 6: Fetch merge queue
+					// Step 6: Fetch merge queue (per-rig)
 					try {
-						const mqResult = await supervisor.gt(
-							['mq', '--json'],
-							{ timeout: 15_000 }
-						);
+						if (rigNames.length > 0) {
+							const allMqItems: unknown[] = [];
 
-						if (mqResult.success && mqResult.data) {
-							const mqHash = JSON.stringify(mqResult.data);
+							for (const rigName of rigNames) {
+								try {
+									const mqResult = await supervisor.gt(
+										['mq', 'list', rigName, '--json'],
+										{ timeout: 15_000 }
+									);
+
+									if (mqResult.success && mqResult.data) {
+										const rigItems = Array.isArray(mqResult.data) ? mqResult.data : [];
+										for (const item of rigItems) {
+											allMqItems.push({ ...(item as Record<string, unknown>), rig: rigName });
+										}
+									}
+								} catch {
+									// Per-rig merge queue failure is non-fatal
+								}
+							}
+
+							const mqHash = JSON.stringify(allMqItems);
 							if (mqHash !== prevMergeQueueHash) {
 								prevMergeQueueHash = mqHash;
-								const items = Array.isArray(mqResult.data) ? mqResult.data : [];
 								safeEnqueue(
 									encoder.encode(
 										formatSSE({
 											type: 'mergequeue',
-											data: { items, total: items.length },
+											data: { items: allMqItems, total: allMqItems.length },
 											timestamp: new Date().toISOString()
 										})
 									)
