@@ -42,6 +42,18 @@
 
 	const horizonColor = $derived(interpolateHorizon(load));
 
+	let camera: THREE.OrthographicCamera | null = $state(null);
+
+	// Keep projection matrix in sync with reactive frustum bounds
+	$effect(() => {
+		if (!camera) return;
+		camera.left = -frustumW / 2;
+		camera.right = frustumW / 2;
+		camera.top = frustumH / 2;
+		camera.bottom = -frustumH / 2;
+		camera.updateProjectionMatrix();
+	});
+
 	// Sky gradient background — reactive to load via horizonColor
 	$effect(() => {
 		const canvas = document.createElement('canvas');
@@ -74,7 +86,11 @@
 	near={0.1}
 	far={100}
 	position={[0, 1, 20]}
-	oncreate={(ref) => ref.lookAt(0, 1, 0)}
+	oncreate={(ref) => {
+		camera = ref;
+		ref.lookAt(0, 1, 0);
+		ref.updateProjectionMatrix();
+	}}
 />
 
 <!-- Hemisphere light: warm sky, cool ground — fills shadows naturally -->
