@@ -25,7 +25,7 @@
 	const stackCLit = $derived(band === 'high' || band === 'critical');
 </script>
 
-<T.Group position={[8, 0, -2]}>
+<T.Group position={[4, 0, -2]}>
 	<!-- Main tower -->
 	<T.Mesh position={[0, 1.5, 0]}>
 		<T.BoxGeometry args={[2, 5, 2]} />

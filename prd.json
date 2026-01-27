@@ -1,0 +1,267 @@
+{
+  "project": "GasTownUI",
+  "branchName": "ralph/wasteland-animations-p3-p5",
+  "description": "Wasteland Dashboard Animations Phases 3-5: Vehicle convoy (task-to-vehicle mapping), War Boy agents, and polish (shaders, sparks, reduced-motion fallback). Phases 1-2 (static scene + load-reactive citadel) are already complete.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add vehicle and War Boy color tokens to colors.ts",
+      "description": "As a developer, I need color constants for vehicles, War Boys, and spark particles so that later components reference the shared palette.",
+      "acceptanceCriteria": [
+        "Add 'vehicle' section to WASTELAND object with keys: body (chrome-600 #8b939e), accentPR (rust-500 #c2410c), accentIssue (chrome-500 #a1a1aa), exhaust (flame-500 #f97316), blocked (warning-400 #fbbf24), failed (oil-900 #3d3d3d), headlight (#fef3c7)",
+        "Add 'warBoy' section with keys: body (chrome-300 #d1d5db), highlight (chrome-200 #e5e7eb)",
+        "Add 'spark' key to flame section: spark (flame-400 #fb923c)",
+        "Existing color values unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create Vehicle.svelte procedural mesh component",
+      "description": "As a developer, I need a single vehicle 3D component with procedural geometry (box body, cylinder wheels, exhaust pipe) that renders in the wasteland scene.",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/Vehicle.svelte",
+        "Props interface: { status: 'pending' | 'running' | 'completed' | 'blocked' | 'failed', taskType?: 'pr' | 'issue', x: number, z: number }",
+        "Vehicle geometry: box body (1.2 x 0.5 x 0.6), 4 cylinder wheels (radius 0.12), small box exhaust pipe at rear",
+        "Body color uses WASTELAND.vehicle.body, accent color from taskType (pr=accentPR, issue=accentIssue)",
+        "Blocked vehicles get emissive pulse on material using $effect with Math.sin animation cycling WASTELAND.vehicle.blocked",
+        "Failed vehicles use WASTELAND.vehicle.failed color, no emissive",
+        "Pending vehicles have a point light at front (headlight, WASTELAND.vehicle.headlight, intensity 0.3)",
+        "Component renders correctly when placed in WastelandScene",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "All geometry is procedural — no external model files. Keep under 150 lines."
+    },
+    {
+      "id": "US-003",
+      "title": "Create VehicleExhaust.svelte particle emitter",
+      "description": "As a developer, I need exhaust particles trailing behind running vehicles.",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/VehicleExhaust.svelte",
+        "Props: { active: boolean, x: number, z: number }",
+        "Uses THREE.Points with BufferGeometry (max 30 particles per vehicle)",
+        "Particles spawn at exhaust pipe position, drift backward and upward, fade out",
+        "Color: WASTELAND.vehicle.exhaust with opacity fade",
+        "Particles only spawn when active=true (running status)",
+        "Animation uses useFrame from @threlte/core or $effect with requestAnimationFrame",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Particle count kept low per vehicle since multiple vehicles will be on screen."
+    },
+    {
+      "id": "US-004",
+      "title": "Create VehicleConvoy.svelte to map tasks to vehicles",
+      "description": "As a developer, I need a manager component that maps tasksStore items to Vehicle instances with correct positioning and lifecycle.",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/VehicleConvoy.svelte",
+        "Props: { tasks: Array<{ id: string, status: string, type?: string }> }",
+        "Pending tasks position vehicles in staging area (x < -frustumW/2 + 2, slight z variation per vehicle)",
+        "Running tasks position vehicles across the desert road, evenly distributed between staging area and citadel",
+        "Completed tasks position vehicles at citadel gate area (x > frustumW/2 - 2) with opacity fading to 0",
+        "Blocked tasks stop at their current x position",
+        "Failed tasks stop at current x with slight z offset (roadside)",
+        "Each Vehicle has a VehicleExhaust with active=true only when status is 'running' or 'pending'",
+        "Vehicles use {#each tasks as task (task.id)} for keyed rendering",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Position transitions should be smooth — use $effect to tween x positions over ~1.5s."
+    },
+    {
+      "id": "US-005",
+      "title": "Integrate VehicleConvoy into WastelandScene",
+      "description": "As a developer, I need WastelandScene to accept tasks prop and render the vehicle convoy.",
+      "acceptanceCriteria": [
+        "WastelandScene.svelte Props updated: add tasks?: Array<{ id: string, status: string, type?: string }>",
+        "Import and render VehicleConvoy component, passing tasks prop",
+        "Default tasks to empty array if not provided",
+        "Scene still renders correctly with no tasks (empty convoy)",
+        "Scene renders vehicles when tasks array is populated",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create DustSystem.svelte ambient particle system",
+      "description": "As a developer, I need ambient sand/dust particles drifting across the desert that scale with system load.",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/particles/DustSystem.svelte",
+        "Props: { intensity: number } (0-1, maps to load/100)",
+        "Uses THREE.Points with BufferGeometry, max 200 particles",
+        "Particles drift right-to-left at ground level, recycle when off-screen",
+        "Particle count scales with intensity: intensity=0 shows ~20 particles, intensity=1 shows 200",
+        "Color: WASTELAND.desert.duneA with low opacity",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Integrate DustSystem into WastelandScene",
+      "description": "As a developer, I need the dust particle system rendering in the scene, driven by load.",
+      "acceptanceCriteria": [
+        "Import DustSystem in WastelandScene.svelte",
+        "Render DustSystem with intensity={load / 100}",
+        "Dust visible at any load level above 0",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create WarBoy.svelte agent figure component",
+      "description": "As a developer, I need a simple humanoid figure (capsule body + sphere head) representing an agent.",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/WarBoy.svelte",
+        "Props: { state: 'idle' | 'busy' | 'offline', x: number, y: number, z: number }",
+        "Geometry: capsule body (radius 0.08, height 0.3), sphere head (radius 0.06) on top",
+        "Color: WASTELAND.warBoy.body (chrome-300)",
+        "Idle state: slight Y-axis sway animation (sine wave, +-0.02 units, 2s period)",
+        "Busy state: arms-raised pose (two small box arms angled upward at 45 degrees)",
+        "Offline state: component returns null / not rendered",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Stick-figure proportions. Recognizable as human at small scale without skeletal animation."
+    },
+    {
+      "id": "US-009",
+      "title": "Create WarBoyManager.svelte to map agents to figures",
+      "description": "As a developer, I need a manager component that places War Boy figures on citadel platforms (idle) or on vehicles (busy).",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/WarBoyManager.svelte",
+        "Props: { agents: Array<{ name: string, state: string, assignedTask?: string }>, tasks: Array<{ id: string, status: string }> }",
+        "Idle agents positioned on citadel platforms (x around citadel area, y elevated on platforms, spaced in z)",
+        "Busy agents positioned on top of their assigned vehicle (match task id to find vehicle x position)",
+        "Offline agents not rendered",
+        "Keyed rendering with {#each agents as agent (agent.name)}",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Position transitions between idle and busy can be instant for now — smooth tweens are Phase 5 polish."
+    },
+    {
+      "id": "US-010",
+      "title": "Integrate WarBoyManager into WastelandScene",
+      "description": "As a developer, I need WastelandScene to accept agents prop and render the War Boy manager.",
+      "acceptanceCriteria": [
+        "WastelandScene.svelte Props updated: add agents?: Array<{ name: string, state: string, assignedTask?: string }>",
+        "Import and render WarBoyManager, passing agents and tasks props",
+        "Default agents to empty array if not provided",
+        "Scene renders War Boys on citadel when agents have idle state",
+        "Scene renders War Boys on vehicles when agents have busy state with assignedTask matching a task id",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Update WastelandHero to pass tasks and agents to scene",
+      "description": "As a user, I want the dashboard hero to show vehicles for tasks and War Boys for agents from real store data.",
+      "acceptanceCriteria": [
+        "WastelandHero.svelte Props updated: add tasks and agents props matching WastelandScene's expected types",
+        "Props passed through to WastelandScene component",
+        "index.ts barrel export still exports WastelandHero",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create SparkSystem.svelte for critical load sparks",
+      "description": "As a developer, I need spark particles bursting from citadel stacks when load exceeds 80%.",
+      "acceptanceCriteria": [
+        "Create src/lib/components/wasteland/particles/SparkSystem.svelte",
+        "Props: { active: boolean }",
+        "Uses THREE.Points with max 50 particles",
+        "Sparks emit from citadel stack positions (y=3-4, x around citadel area)",
+        "Particles shoot upward and outward with gravity falloff, short lifespan (~0.5s)",
+        "Color: WASTELAND.flame.spark (flame-400)",
+        "Only emits when active=true",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Integrate SparkSystem into WastelandScene at critical load",
+      "description": "As a user, I want sparks to fly from the citadel when system load is critical (>80%).",
+      "acceptanceCriteria": [
+        "Import SparkSystem in WastelandScene.svelte",
+        "Render SparkSystem with active={band === 'critical'}",
+        "Sparks only visible when load > 80%",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add reduced-motion fallback to WastelandHero",
+      "description": "As a user who prefers reduced motion, I want a static fallback instead of the animated 3D scene.",
+      "acceptanceCriteria": [
+        "WastelandHero.svelte detects prefers-reduced-motion media query using $state and matchMedia",
+        "When reduced motion is preferred, render a static SVG silhouette instead of the Canvas",
+        "SVG shows simplified citadel outline, desert horizon line, and sky gradient using Gas Town theme colors",
+        "SVG is full-width, same height as canvas (300px)",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "The SVG doesn't need to be complex — a simplified silhouette that matches the scene's visual identity."
+    },
+    {
+      "id": "US-015",
+      "title": "Add canvas vibration effect at critical load",
+      "description": "As a user, I want subtle visual vibration on the scene when load is critical to convey urgency.",
+      "acceptanceCriteria": [
+        "WastelandHero.svelte applies a CSS transform translateX/translateY shake when load > 80%",
+        "Shake is subtle: random +-1px offset at ~15Hz using $effect with setInterval",
+        "Shake only active when band is 'critical'",
+        "Does not apply when prefers-reduced-motion is active",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Update barrel exports and CLAUDE.md layout",
+      "description": "As a developer, I need the barrel exports and codebase layout documentation updated to reflect all new wasteland components.",
+      "acceptanceCriteria": [
+        "src/lib/components/wasteland/index.ts exports WastelandHero (already done — verify still correct)",
+        "particles/ directory has its own index.ts exporting DustSystem, SparkSystem",
+        ".claude/CLAUDE.md codebase layout updated: wasteland section lists all new components (Vehicle, VehicleConvoy, VehicleExhaust, WarBoy, WarBoyManager, particles/DustSystem, particles/SparkSystem)",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

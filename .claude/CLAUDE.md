@@ -143,6 +143,7 @@ gastownUIOther/                            # Gas Town UI - SvelteKit 2 + Svelte 
 │
 └── docs/
     └── plans/                             # Design and implementation plans
+        └── archive/                       # Completed/implemented plans
 ```
 
 ## Tech Stack
