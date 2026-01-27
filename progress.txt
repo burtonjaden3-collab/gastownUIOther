@@ -3,7 +3,7 @@
 Project: GasTownUI
 Branch: ralph/fix-circuit-breaker-false-trips
 Stories: 6
-Completed: 4
+Completed: 5
 
 ## Codebase Patterns
 - CircuitBreaker is in `src/lib/server/cli/circuit-breaker.ts`, ProcessSupervisor in `process-supervisor.ts` — both in the same `cli/` directory
@@ -17,6 +17,9 @@ Completed: 4
 - Error classification in `executeCommand()`: check `!wasKilled` first, then pattern-match stderr — infrastructure errors (killed/timeout/ENOENT) always go to `recordFailure()`
 - `gt mq list` requires a rig name argument — use `gt mq list <rigName> --json` for each rig, never bare `gt mq --json`
 - SSE polling loop has `rigNames` available from Step 1 — reuse it for per-rig commands in later steps
+- `gt mol status --json` returns current hook molecule (may be single object, not array) — always normalize to array
+- `gt mol progress <id> --json` replaces `gt mol show <id> --json` for molecule detail
+- Handle 'no beads database found' in molecule endpoints by returning empty data with 200, not 500/503
 
 ## 2026-01-26 - US-001
 - What was implemented: Added `recordCommandError()` method to CircuitBreaker that increments a `commandErrorCount` counter without affecting `failureCount` or circuit state. Updated `getStats()` to include the new `commandErrorCount` field. Updated `reset()` to clear the new counter.
@@ -55,5 +58,16 @@ Completed: 4
   - The SSE polling loop already has `rigNames` available from Step 1 — reuse it rather than calling `getRigNames()` again
   - The mergequeue endpoint already had correct per-rig `gt mq list` calls from a previous fix — only needed the `?rig=` query param addition
   - SvelteKit route handlers can destructure `{ url }` from the request event to access query params via `url.searchParams`
+  - `svelte-check` passed with 0 errors and 0 warnings
+---
+
+## 2026-01-26 - US-005
+- What was implemented: Fixed molecule endpoint commands. In molecules list endpoint, replaced `['mol', 'list', '--active', '--json']` with `['mol', 'status', '--json']`. Added handling for single-object response by wrapping in array (`data ? [data] : []`). In molecule detail endpoint, replaced `['mol', 'show', id, '--json']` with `['mol', 'progress', id, '--json']`. Both endpoints now handle 'no beads database found' errors gracefully — returning empty data with 200 status instead of 500/503.
+- Files changed: `src/routes/api/gastown/molecules/+server.ts`, `src/routes/api/gastown/molecules/[id]/+server.ts`
+- **Learnings for future iterations:**
+  - `gt mol status --json` may return a single object (not array) when one molecule is attached to the hook — always normalize with `Array.isArray(data) ? data : data ? [data] : []`
+  - `gt mol progress <id> --json` is the correct subcommand for molecule detail, not `gt mol show`
+  - The 'no beads database found' pattern check should be case-insensitive (`.toLowerCase()`) since CLI output formatting varies
+  - Both molecule endpoints follow the same pattern: check `result.error` for beads DB absence before returning 503
   - `svelte-check` passed with 0 errors and 0 warnings
 ---

@@ -81,7 +81,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "gt mol status --json shows hook status. gt mol progress <id> --json shows step progress. Both accept --json."
     },
     {
