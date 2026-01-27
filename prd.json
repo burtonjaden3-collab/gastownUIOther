@@ -98,7 +98,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "bd version is a lightweight command that succeeds if bd can find a database. Use it as the probe."
     }
   ]
