@@ -29,16 +29,30 @@
 		lifetimes.push(0);
 	}
 
-	const geometry = new THREE.BufferGeometry();
-	geometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+	// Create geometry and material fresh per instance
+	let geometry: THREE.BufferGeometry | undefined = $state();
+	let material: THREE.PointsMaterial | undefined = $state();
 
-	const material = new THREE.PointsMaterial({
-		size: 0.05,
-		color: new THREE.Color(WASTELAND.vehicle.exhaust),
-		transparent: true,
-		opacity: 0.6,
-		depthWrite: false,
-		blending: THREE.AdditiveBlending
+	$effect(() => {
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+
+		const mat = new THREE.PointsMaterial({
+			size: 0.05,
+			color: new THREE.Color(WASTELAND.vehicle.exhaust),
+			transparent: true,
+			opacity: 0.6,
+			depthWrite: false,
+			blending: THREE.AdditiveBlending
+		});
+
+		geometry = geo;
+		material = mat;
+
+		return () => {
+			geo.dispose();
+			mat.dispose();
+		};
 	});
 
 	// Spawn new particle at exhaust pipe position
@@ -63,16 +77,22 @@
 		nextParticleIndex = (nextParticleIndex + 1) % MAX_PARTICLES;
 	}
 
+	// Time-accumulator for frame-rate-independent spawning (~5.5 particles/sec)
+	const SPAWN_INTERVAL = 0.18;
+	let spawnTimer = 0;
+
 	// Animation loop
 	useTask((delta) => {
-		if (!points) return;
+		if (!points || !geometry || !material) return;
 
 		const posAttr = geometry.getAttribute('position');
 
 		if (active) {
-			// Spawn particles every few frames
-			if (Math.random() < 0.3) {
+			// Frame-rate-independent spawn using time accumulator
+			spawnTimer += delta;
+			while (spawnTimer >= SPAWN_INTERVAL) {
 				spawnParticle();
+				spawnTimer -= SPAWN_INTERVAL;
 			}
 
 			// Update active particles
@@ -93,10 +113,6 @@
 					positionArray[idx] += velocities[i].x * delta;
 					positionArray[idx + 1] += velocities[i].y * delta;
 					positionArray[idx + 2] += velocities[i].z * delta;
-
-					// Fade out
-					const fadeProgress = lifetimes[i] / 1.0;
-					material.opacity = 0.6 * (1 - fadeProgress);
 				}
 			}
 		} else {
@@ -110,4 +126,6 @@
 	});
 </script>
 
-<T.Points {geometry} {material} oncreate={(ref) => { points = ref as unknown as THREE.Points; }} />
+{#if geometry && material}
+	<T.Points {geometry} {material} oncreate={(ref) => { points = ref as unknown as THREE.Points; }} />
+{/if}

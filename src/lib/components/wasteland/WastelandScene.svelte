@@ -10,9 +10,18 @@
 
 	type LoadBand = 'low' | 'moderate' | 'high' | 'critical';
 
+	type VehicleStatus = 'pending' | 'running' | 'completed' | 'blocked' | 'failed';
+	type VehicleTaskType = 'pr' | 'issue';
+
+	interface SceneTask {
+		id: string;
+		status: VehicleStatus;
+		type?: VehicleTaskType;
+	}
+
 	interface Props {
 		load?: number;
-		tasks?: Array<{ id: string; status: string; type?: string }>;
+		tasks?: SceneTask[];
 		agents?: Array<{ name: string; state: string; assignedTask?: string }>;
 	}
 

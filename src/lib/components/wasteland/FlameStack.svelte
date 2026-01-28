@@ -28,7 +28,7 @@
 
 	const flameTop = $derived(position[1] + height / 2 + 0.2);
 
-	const flameColor = $derived(() => {
+	const flameColor = $derived.by(() => {
 		const out = new THREE.Color();
 		out.lerpColors(
 			new THREE.Color(WASTELAND.flame.dim),
@@ -65,8 +65,8 @@
 	>
 		<T.SphereGeometry args={[0.3, 8, 6]} />
 		<T.MeshStandardMaterial
-			color={flameColor()}
-			emissive={flameColor()}
+			color={flameColor}
+			emissive={flameColor}
 			emissiveIntensity={intensity * 2}
 			roughness={0.3}
 			transparent

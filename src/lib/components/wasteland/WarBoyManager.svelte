@@ -18,7 +18,7 @@ const frustumW = $derived(frustumH * aspect);
 /**
  * Position computation for each agent based on state
  * - idle: Clustered on citadel platforms (right side, elevated)
- * - busy: On top of assigned vehicle (desert road between staging and citadel)
+ * - running: On top of assigned vehicle (desert road between staging and citadel)
  * - offline: Handled by WarBoy component (renders nothing)
  */
 function computePosition(agent: { name: string; state: string; assignedTask?: string }, index: number): { x: number; y: number; z: number } {
@@ -31,8 +31,8 @@ function computePosition(agent: { name: string; state: string; assignedTask?: st
 		};
 	}
 
-	// Busy agents: on top of assigned vehicle
-	if (agent.state === 'busy' && agent.assignedTask) {
+	// Running agents: on top of assigned vehicle
+	if (agent.state === 'running' && agent.assignedTask) {
 		// Find the matching task
 		const taskIndex = tasks.findIndex(t => t.id === agent.assignedTask && t.status === 'running');
 
@@ -68,7 +68,7 @@ function computePosition(agent: { name: string; state: string; assignedTask?: st
 {#each agents as agent, index (agent.name)}
 	{@const pos = computePosition(agent, index)}
 	<WarBoy
-		agentState={agent.state as 'idle' | 'busy' | 'offline'}
+		agentState={agent.state as 'idle' | 'running' | 'offline'}
 		x={pos.x}
 		y={pos.y}
 		z={pos.z}

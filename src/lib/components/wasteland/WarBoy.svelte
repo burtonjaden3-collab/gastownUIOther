@@ -3,7 +3,7 @@
 	import { WASTELAND } from './colors';
 
 	interface Props {
-		agentState: 'idle' | 'busy' | 'offline';
+		agentState: 'idle' | 'running' | 'offline';
 		x: number;
 		y: number;
 		z: number;
@@ -45,8 +45,8 @@
 			/>
 		</T.Mesh>
 
-		<!-- Arms (only visible when busy) -->
-		{#if agentState === 'busy'}
+		<!-- Arms (only visible when running) -->
+		{#if agentState === 'running'}
 			<!-- Left arm -->
 			<T.Mesh position.x={-0.12} position.y={0.1} rotation.z={Math.PI / 4}>
 				<T.BoxGeometry args={[0.04, 0.15, 0.04]} />

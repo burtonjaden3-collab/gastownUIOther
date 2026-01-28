@@ -3,8 +3,17 @@ import { T, useThrelte } from '@threlte/core';
 import Vehicle from './Vehicle.svelte';
 import VehicleExhaust from './VehicleExhaust.svelte';
 
+type VehicleStatus = 'pending' | 'running' | 'completed' | 'blocked' | 'failed';
+type VehicleTaskType = 'pr' | 'issue';
+
+interface ConvoyTask {
+	id: string;
+	status: VehicleStatus;
+	type?: VehicleTaskType;
+}
+
 interface Props {
-	tasks: Array<{ id: string; status: string; type?: string }>;
+	tasks: ConvoyTask[];
 }
 
 const { tasks }: Props = $props();
@@ -16,19 +25,18 @@ const frustumH = 8;
 const frustumW = $derived(frustumH * aspect);
 
 // Group tasks by status for position indexing
-const groupedTasks = $derived(() => {
-	const groups = {
-		pending: [] as typeof tasks,
-		running: [] as typeof tasks,
-		completed: [] as typeof tasks,
-		blocked: [] as typeof tasks,
-		failed: [] as typeof tasks
+const groupedTasks = $derived.by(() => {
+	const groups: Record<VehicleStatus, ConvoyTask[]> = {
+		pending: [],
+		running: [],
+		completed: [],
+		blocked: [],
+		failed: []
 	};
 
 	tasks.forEach((task) => {
-		const status = task.status as keyof typeof groups;
-		if (groups[status]) {
-			groups[status].push(task);
+		if (groups[task.status]) {
+			groups[task.status].push(task);
 		}
 	});
 
@@ -36,12 +44,12 @@ const groupedTasks = $derived(() => {
 });
 
 // Position computation based on status
-function computePosition(task: (typeof tasks)[0], globalIndex: number): { x: number; z: number } {
-	const grouped = groupedTasks();
+function computePosition(task: ConvoyTask, globalIndex: number): { x: number; z: number } {
+	const grouped = groupedTasks;
 	const status = task.status;
 
 	// Find index within status group
-	const statusGroup = grouped[status as keyof typeof grouped] || [];
+	const statusGroup = grouped[status] || [];
 	const statusIndex = statusGroup.findIndex((t) => t.id === task.id);
 	const index = statusIndex >= 0 ? statusIndex : globalIndex;
 
@@ -105,7 +113,7 @@ function computePosition(task: (typeof tasks)[0], globalIndex: number): { x: num
 
 {#each tasks as task, index (task.id)}
 	{@const pos = computePosition(task, index)}
-	<Vehicle status={task.status as any} taskType={task.type as any} x={pos.x} z={pos.z} />
+	<Vehicle status={task.status} taskType={task.type} x={pos.x} z={pos.z} />
 	<VehicleExhaust
 		active={task.status === 'running' || task.status === 'pending'}
 		x={pos.x}

@@ -10,7 +10,7 @@
 </T.Mesh>
 
 <!-- Foreground strip (lighter, offset to avoid z-fighting) -->
-<T.Mesh rotation.x={-Math.PI / 2} position={[0, -0.98, 8]}>
+<T.Mesh rotation.x={-Math.PI / 2} position={[0, -0.93, 8]}>
 	<T.PlaneGeometry args={[80, 12]} />
 	<T.MeshStandardMaterial color={WASTELAND.desert.foreground} roughness={0.9} />
 </T.Mesh>

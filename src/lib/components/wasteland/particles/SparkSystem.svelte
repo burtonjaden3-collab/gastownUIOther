@@ -11,7 +11,7 @@
 
 	const MAX_PARTICLES = 50;
 
-	// Particle state
+	// Particle state — created fresh per component instance
 	const positions = new Float32Array(MAX_PARTICLES * 3);
 	const vx = new Float32Array(MAX_PARTICLES);
 	const vy = new Float32Array(MAX_PARTICLES);
@@ -24,16 +24,30 @@
 		lifetimes[i] = 1; // Mark as dead
 	}
 
-	const geometry = new THREE.BufferGeometry();
-	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+	// Create geometry and material fresh per instance
+	let geometry: THREE.BufferGeometry | undefined = $state();
+	let material: THREE.PointsMaterial | undefined = $state();
 
-	const material = new THREE.PointsMaterial({
-		size: 0.06,
-		color: new THREE.Color(WASTELAND.flame.spark),
-		transparent: true,
-		opacity: 0.8,
-		depthWrite: false,
-		blending: THREE.AdditiveBlending
+	$effect(() => {
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+		const mat = new THREE.PointsMaterial({
+			size: 0.06,
+			color: new THREE.Color(WASTELAND.flame.spark),
+			transparent: true,
+			opacity: 0.8,
+			depthWrite: false,
+			blending: THREE.AdditiveBlending
+		});
+
+		geometry = geo;
+		material = mat;
+
+		return () => {
+			geo.dispose();
+			mat.dispose();
+		};
 	});
 
 	let points: THREE.Points | undefined = $state();
@@ -50,7 +64,7 @@
 	};
 
 	useTask((delta) => {
-		if (!points) return;
+		if (!points || !geometry) return;
 
 		if (active) {
 			const spawnCount = Math.floor(3 + Math.random() * 3);
@@ -77,8 +91,12 @@
 			positions[i3 + 2] += vz[i] * delta;
 		}
 
-		geometry.attributes.position.needsUpdate = true;
+		if (geometry.attributes.position) {
+			geometry.attributes.position.needsUpdate = true;
+		}
 	});
 </script>
 
-<T.Points {geometry} {material} oncreate={(ref) => { points = ref as unknown as THREE.Points; }} />
+{#if geometry && material}
+	<T.Points {geometry} {material} oncreate={(ref) => { points = ref as unknown as THREE.Points; }} />
+{/if}

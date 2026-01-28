@@ -100,14 +100,12 @@
 
 	<!-- Flame Stack A (main tower) -->
 	<FlameStack position={[0.5, 3.5, -0.7]} height={3} lit={stackALit} {intensity} />
-	{#if stackALit}
-		<SmokeEmitter
-			position={[0.5, 5.2, -0.7]}
-			density={intensity}
-			speed={0.3 + intensity * 0.7}
-			color={smokeColor}
-		/>
-	{/if}
+	<SmokeEmitter
+		position={[0.5, 5.2, -0.7]}
+		density={stackALit ? intensity : 0}
+		speed={0.3 + intensity * 0.7}
+		color={smokeColor}
+	/>
 
 	<!-- Flame Stack B (secondary tower) -->
 	<FlameStack
@@ -118,15 +116,13 @@
 		lit={stackBLit}
 		{intensity}
 	/>
-	{#if stackBLit}
-		<SmokeEmitter
-			position={[-2.5, 4.5, -0.5]}
-			density={intensity * 0.8}
-			speed={0.2 + intensity * 0.6}
-			color={smokeColor}
-			particleCount={60}
-		/>
-	{/if}
+	<SmokeEmitter
+		position={[-2.5, 4.5, -0.5]}
+		density={stackBLit ? intensity * 0.8 : 0}
+		speed={0.2 + intensity * 0.6}
+		color={smokeColor}
+		particleCount={60}
+	/>
 
 	<!-- Flame Stack C (walkway) -->
 	<FlameStack
@@ -137,15 +133,13 @@
 		lit={stackCLit}
 		{intensity}
 	/>
-	{#if stackCLit}
-		<SmokeEmitter
-			position={[-1.2, 3.8, -0.6]}
-			density={intensity * 0.6}
-			speed={0.2 + intensity * 0.5}
-			color={smokeColor}
-			particleCount={50}
-		/>
-	{/if}
+	<SmokeEmitter
+		position={[-1.2, 3.8, -0.6]}
+		density={stackCLit ? intensity * 0.6 : 0}
+		speed={0.2 + intensity * 0.5}
+		color={smokeColor}
+		particleCount={50}
+	/>
 
 	<!-- Horizontal pipe connecting towers -->
 	<T.Mesh position={[-1.2, 1.8, 0.8]} rotation.z={Math.PI / 2}>

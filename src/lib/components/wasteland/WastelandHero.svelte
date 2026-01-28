@@ -4,19 +4,32 @@
 	import { cn } from '$lib/utils/cn';
 	import WastelandScene from './WastelandScene.svelte';
 
+	type VehicleStatus = 'pending' | 'running' | 'completed' | 'blocked' | 'failed';
+	type VehicleTaskType = 'pr' | 'issue';
+
+	interface HeroTask {
+		id: string;
+		status: VehicleStatus;
+		type?: VehicleTaskType;
+	}
+
 	interface Props {
 		class?: string;
 		load?: number;
-		tasks?: Array<{ id: string; status: string; type?: string }>;
+		tasks?: HeroTask[];
 		agents?: Array<{ name: string; state: string; assignedTask?: string }>;
 	}
 
 	const { class: className, load = 0, tasks = [], agents = [] }: Props = $props();
 
-	// Reduced motion preference detection
+	// Stable key for Canvas — set once at init, not in $effect (avoids double-mount)
+	const mountKey = crypto.randomUUID();
+
+	// Reduced motion preference detection (SSR-safe)
 	let prefersReducedMotion = $state(false);
 
 	$effect(() => {
+		if (!browser) return;
 		const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
 		prefersReducedMotion = mql.matches;
 		const handler = (e: MediaQueryListEvent) => {
@@ -79,13 +92,15 @@
 			</svg>
 		</div>
 	{:else}
-		<div
-			class={cn('h-[300px] w-full overflow-hidden border-b border-oil-800', className)}
-			style:transform="translate({shakeX}px, {shakeY}px)"
-		>
-			<Canvas renderMode="always">
-				<WastelandScene {load} {tasks} {agents} />
-			</Canvas>
-		</div>
+		{#key mountKey}
+			<div
+				class={cn('h-[300px] w-full overflow-hidden border-b border-oil-800', className)}
+				style:transform="translate({shakeX}px, {shakeY}px)"
+			>
+				<Canvas renderMode="always">
+					<WastelandScene {load} {tasks} {agents} />
+				</Canvas>
+			</div>
+		{/key}
 	{/if}
 {/if}

@@ -12,7 +12,7 @@
 	const MAX_PARTICLES = 200;
 	const MIN_ACTIVE = 20;
 
-	// Particle state
+	// Particle state — created fresh per component instance
 	const positions = new Float32Array(MAX_PARTICLES * 3);
 	const velocities: { x: number; y: number; phase: number }[] = [];
 
@@ -20,41 +20,50 @@
 	let pointsRef: THREE.Points | null = $state(null);
 
 	// Initialize particle system
-	function initParticles() {
-		for (let i = 0; i < MAX_PARTICLES; i++) {
-			const i3 = i * 3;
+	for (let i = 0; i < MAX_PARTICLES; i++) {
+		const i3 = i * 3;
 
-			// Random initial position
-			positions[i3] = Math.random() * 30 - 15; // x: -15 to 15
-			positions[i3 + 1] = Math.random() * 1.3 - 0.8; // y: -0.8 to 0.5
-			positions[i3 + 2] = Math.random() * 15 - 10; // z: -10 to 5
+		// Random initial position
+		positions[i3] = Math.random() * 30 - 15; // x: -15 to 15
+		positions[i3 + 1] = Math.random() * 1.3 - 0.8; // y: -0.8 to 0.5
+		positions[i3 + 2] = Math.random() * 15 - 10; // z: -10 to 5
 
-			// Random velocity and phase for vertical drift
-			velocities.push({
-				x: -(0.02 + Math.random() * 0.03), // drift left at varying speeds
-				y: 0,
-				phase: Math.random() * Math.PI * 2, // sine wave phase offset
-			});
-		}
+		// Random velocity and phase for vertical drift
+		velocities.push({
+			x: -(0.02 + Math.random() * 0.03), // drift left at varying speeds
+			y: 0,
+			phase: Math.random() * Math.PI * 2, // sine wave phase offset
+		});
 	}
 
-	initParticles();
+	// Create geometry and material fresh per instance
+	let geometry: THREE.BufferGeometry | undefined = $state();
+	let material: THREE.PointsMaterial | undefined = $state();
 
-	// Create geometry and material
-	const geometry = new THREE.BufferGeometry();
-	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+	$effect(() => {
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-	const material = new THREE.PointsMaterial({
-		size: 0.04,
-		color: new THREE.Color(WASTELAND.desert.duneA),
-		transparent: true,
-		opacity: 0.3,
-		depthWrite: false,
+		const mat = new THREE.PointsMaterial({
+			size: 0.04,
+			color: new THREE.Color(WASTELAND.desert.duneA),
+			transparent: true,
+			opacity: 0.3,
+			depthWrite: false,
+		});
+
+		geometry = geo;
+		material = mat;
+
+		return () => {
+			geo.dispose();
+			mat.dispose();
+		};
 	});
 
 	// Animation loop
 	useTask((delta) => {
-		if (!pointsRef) return;
+		if (!pointsRef || !geometry) return;
 
 		const activeCount = Math.floor(MIN_ACTIVE + (MAX_PARTICLES - MIN_ACTIVE) * intensity);
 		let needsUpdate = false;
@@ -96,4 +105,6 @@
 
 </script>
 
-<T.Points {geometry} {material} oncreate={(ref) => { pointsRef = ref as unknown as THREE.Points; }} />
+{#if geometry && material}
+	<T.Points {geometry} {material} oncreate={(ref) => { pointsRef = ref as unknown as THREE.Points; }} />
+{/if}

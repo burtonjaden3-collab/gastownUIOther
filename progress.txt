@@ -1,87 +1,43 @@
-# Ralph Progress — Fix Circuit Breaker False Trips
+# Ralph Progress — Fix Dashboard Visual Bugs
 
 Project: GasTownUI
-Branch: ralph/fix-circuit-breaker-false-trips
-Stories: 6
-Completed: 6
+Branch: ralph/fix-dashboard-visual-bugs
+Stories: 12
+Completed: 12
 
 ## Codebase Patterns
-- CircuitBreaker is in `src/lib/server/cli/circuit-breaker.ts`, ProcessSupervisor in `process-supervisor.ts` — both in the same `cli/` directory
-- ProcessSupervisor.getStats() uses `ReturnType<CircuitBreaker['getStats']>` for its type — changes to CircuitBreaker.getStats() automatically propagate
-- ProcessSupervisor uses per-domain circuit breakers via `Map<string, CircuitBreaker>` — domain key is `${command}-${args[0] || 'default'}` (e.g. 'gt-mail', 'bd-list')
-- `executeCommand()` receives the breaker as a parameter (captured in closure from `execute()`) — don't re-derive domain inside executeCommand
-- No route files directly reference CircuitBreaker or getStats()/resetCircuitBreaker() — changes to these are internal to ProcessSupervisor
-- Pre-existing `tsc --noEmit` errors (4 Svelte type export issues) are not regressions; use `npx svelte-check` as the authoritative typecheck for this project
-- CircuitBreaker.reset() clears all counters — remember to include new fields there when adding state
-- `COMMAND_ERROR_PATTERNS` is a module-level constant in process-supervisor.ts — add new patterns there when discovering new command-level error strings
-- Error classification in `executeCommand()`: check `!wasKilled` first, then pattern-match stderr — infrastructure errors (killed/timeout/ENOENT) always go to `recordFailure()`
-- `gt mq list` requires a rig name argument — use `gt mq list <rigName> --json` for each rig, never bare `gt mq --json`
-- SSE polling loop has `rigNames` available from Step 1 — reuse it for per-rig commands in later steps
-- `gt mol status --json` returns current hook molecule (may be single object, not array) — always normalize to array
-- `gt mol progress <id> --json` replaces `gt mol show <id> --json` for molecule detail
-- Handle 'no beads database found' in molecule endpoints by returning empty data with 200, not 500/503
-- SSE polling uses a `beadsAvailable` flag + 60s re-probe interval to skip bd commands when no beads DB — emit `beadsUnavailable: true` flag in empty events
-- `bd version` is a lightweight probe command — use it with 5s timeout to check beads DB availability
+- Three.js geometry/material objects must be created inside `$effect()` with disposal in cleanup, never as module-level constants — module-level Three.js objects survive component remount but reference a destroyed WebGL context
+- Particle system components (DustSystem, SparkSystem, VehicleExhaust) use `{#if geometry && material}` guards before rendering `<T.Points>`
+- SmokeEmitter uses inline `<T.BufferGeometry>` and `<T.PointsMaterial>` which Threlte manages — this pattern is safe for remount
+- Svelte 5: use `$derived(expr)` for simple expressions, `$derived.by(() => { ... })` for function bodies — `$derived(() => { ... })` stores the function itself, not the result
+- Svelte 5: `$effect` blocks run during SSR — always guard browser API access with `if (!browser) return;` using the import from `$app/environment`
+- AgentStatus from the store is `'running' | 'idle' | 'offline'` — components expecting different terms (e.g., 'busy') need a mapping
+- Typecheck command: `npx svelte-check` (NOT `tsc --noEmit`)
 
-## 2026-01-26 - US-001
-- What was implemented: Added `recordCommandError()` method to CircuitBreaker that increments a `commandErrorCount` counter without affecting `failureCount` or circuit state. Updated `getStats()` to include the new `commandErrorCount` field. Updated `reset()` to clear the new counter.
-- Files changed: `src/lib/server/cli/circuit-breaker.ts`
-- **Learnings for future iterations:**
-  - ProcessSupervisor uses `ReturnType<CircuitBreaker['getStats']>` so adding fields to CircuitBreaker.getStats() automatically flows through
-  - `tsc --noEmit` has 4 pre-existing errors related to Svelte module type exports (BreadcrumbItem, Selection, WorkTab) — these are NOT regressions
-  - Use `npx svelte-check` for accurate type validation in this Svelte 5 project
+- TaskStatus uses `in_progress` but 3D scene expects `running` — map at the +page.svelte boundary when passing tasks to WastelandHero
+- TaskType (`code`|`data`|`general`) needs mapping to Vehicle types (`pr`|`issue`) at the boundary
+- When tightening types (removing `as any`), propagate the typed interface through Props of all parent components (WastelandHero → WastelandScene → VehicleConvoy)
+
 ---
 
-## 2026-01-26 - US-002
-- What was implemented: Refactored ProcessSupervisor to use per-domain circuit breakers instead of a single shared breaker. Added `getDomainKey()` (returns `${command}-${args[0] || 'default'}`) and `getBreaker()` (lazy-creates breakers per domain). Updated `execute()` to derive domain and check domain-specific breaker. Updated `executeCommand()` to accept a breaker parameter. Changed `getStats()` to return `Record<string, CircuitBreakerStats>`. Changed `resetCircuitBreaker()` to accept optional domain string.
-- Files changed: `src/lib/server/cli/process-supervisor.ts`
+## 2026-01-27 - US-001 through US-012 (all 12 stories)
+- Implemented all 12 dashboard visual bug fixes in a single iteration
+- Files changed:
+  - src/lib/components/wasteland/WarBoy.svelte (US-001: already had running state)
+  - src/lib/components/wasteland/WarBoyManager.svelte (US-001: already had running state)
+  - src/lib/components/wasteland/VehicleConvoy.svelte (US-002: $derived.by, US-012: typed Props, removed as any)
+  - src/lib/components/wasteland/FlameStack.svelte (US-003: $derived.by, removed () calls)
+  - src/lib/components/wasteland/WastelandHero.svelte (US-004: stable mountKey, US-005: SSR browser guard)
+  - src/lib/components/wasteland/WastelandScene.svelte (typed Props for tasks)
+  - src/lib/components/wasteland/VehicleExhaust.svelte (US-006: removed material.opacity mutation, US-011: time-accumulator spawning)
+  - src/lib/stores/tasks.svelte.ts (US-007: fixed failed stat aliasing)
+  - src/lib/components/wasteland/particles/SparkSystem.svelte (US-008: null check)
+  - src/lib/components/wasteland/CitadelGroup.svelte (US-009: always-mounted SmokeEmitters)
+  - src/lib/components/wasteland/DesertFloor.svelte (US-010: z-fighting gap increased)
+  - src/routes/+page.svelte (status mapping in_progress→running, type mapping code→pr)
 - **Learnings for future iterations:**
-  - The breaker is passed into `executeCommand()` via closure capture from `execute()` — avoids re-deriving the domain key inside the callback
-  - `getStats().circuitBreaker` is now a `Record<string, ...>` instead of a flat object — any code consuming this will need to iterate domains
-  - No route handlers directly consume `getStats()` or `resetCircuitBreaker()` — the type change is internal
-  - Breakers are lazily created on first use for each domain — no need to pre-populate
----
-
-## 2026-01-26 - US-003
-- What was implemented: Added error classification logic to `executeCommand()` in ProcessSupervisor. Before calling `recordFailure()`, the error handler now checks if stderr matches known command-error patterns (`unknown flag`, `unknown command`, `no beads database found`, `error: unknown`, `not a valid command`) AND the process was not killed/timed out. If so, calls `recordCommandError()` instead of `recordFailure()`. Added `COMMAND_ERROR_PATTERNS` module-level constant. Infrastructure errors (spawn failure, timeout, kill) still call `recordFailure()`.
-- Files changed: `src/lib/server/cli/process-supervisor.ts`
-- **Learnings for future iterations:**
-  - The `isTimeout`/`wasKilled` variables needed to be moved BEFORE the breaker recording logic since classification depends on them
-  - Patterns are compared case-insensitively (lowercase both stderr and patterns) to handle varied CLI output formatting
-  - The spawn `'error'` event handler (ENOENT etc.) is separate from the execFile callback — it correctly remains as `recordFailure()` since spawn failures are always infrastructure errors
-  - `svelte-check` passed with 0 errors and 0 warnings — clean typecheck
----
-
-## 2026-01-26 - US-004
-- What was implemented: Fixed `gt mq` command usage in both SSE polling and mergequeue endpoint. In SSE events Step 6, replaced the single `supervisor.gt(['mq', '--json'])` call with a per-rig loop calling `supervisor.gt(['mq', 'list', rigName, '--json'])` for each rig, aggregating results into a single items array. Added guard to skip merge queue polling when `rigNames` is empty. In mergequeue endpoint, added `?rig=` query parameter support — if provided, queries only that rig; otherwise falls back to `getRigNames()` and aggregates across all rigs.
-- Files changed: `src/routes/api/gastown/events/+server.ts`, `src/routes/api/gastown/mergequeue/+server.ts`
-- **Learnings for future iterations:**
-  - `gt mq list` requires a rig name argument — `gt mq --json` alone is invalid syntax and triggers command errors
-  - The SSE polling loop already has `rigNames` available from Step 1 — reuse it rather than calling `getRigNames()` again
-  - The mergequeue endpoint already had correct per-rig `gt mq list` calls from a previous fix — only needed the `?rig=` query param addition
-  - SvelteKit route handlers can destructure `{ url }` from the request event to access query params via `url.searchParams`
-  - `svelte-check` passed with 0 errors and 0 warnings
----
-
-## 2026-01-26 - US-005
-- What was implemented: Fixed molecule endpoint commands. In molecules list endpoint, replaced `['mol', 'list', '--active', '--json']` with `['mol', 'status', '--json']`. Added handling for single-object response by wrapping in array (`data ? [data] : []`). In molecule detail endpoint, replaced `['mol', 'show', id, '--json']` with `['mol', 'progress', id, '--json']`. Both endpoints now handle 'no beads database found' errors gracefully — returning empty data with 200 status instead of 500/503.
-- Files changed: `src/routes/api/gastown/molecules/+server.ts`, `src/routes/api/gastown/molecules/[id]/+server.ts`
-- **Learnings for future iterations:**
-  - `gt mol status --json` may return a single object (not array) when one molecule is attached to the hook — always normalize with `Array.isArray(data) ? data : data ? [data] : []`
-  - `gt mol progress <id> --json` is the correct subcommand for molecule detail, not `gt mol show`
-  - The 'no beads database found' pattern check should be case-insensitive (`.toLowerCase()`) since CLI output formatting varies
-  - Both molecule endpoints follow the same pattern: check `result.error` for beads DB absence before returning 503
-  - `svelte-check` passed with 0 errors and 0 warnings
----
-
-## 2026-01-26 - US-006
-- What was implemented: Added beads database availability probing to SSE polling. Before the first `bd` command in each poll cycle, runs `supervisor.bd(['version'], { timeout: 5000 })` and caches the result in a `beadsAvailable` flag. Re-probes every 60 seconds. When beads is unavailable, skips three bd-dependent commands: `bd list --json` (tasks), `bd list --type=convoy --json` (convoys), `bd gate list --json` (gates). Instead emits SSE events with empty data and a `beadsUnavailable: true` flag. Skipped polls do not set `pollHadFailure = true`, preventing false backoff escalation. Normal polling resumes immediately when beads becomes available on re-probe.
-- Files changed: `src/routes/api/gastown/events/+server.ts`
-- **Learnings for future iterations:**
-  - `bd version` is the lightest beads command — succeeds if db exists, fails fast otherwise. Use 5s timeout.
-  - The beads probe should run once per poll cycle, before any bd commands, not per-command — avoids triple-probing
-  - `lastBeadsCheck` starts at 0 so the first poll cycle always probes (since `Date.now() - 0 >= 60000` is always true)
-  - When emitting `beadsUnavailable: true` events, still use the hash-change check pattern to avoid flooding the client with duplicate empty events
-  - Steps 4 (feed), 5 (mail), 6 (merge queue), 8 (dogs) use `gt` not `bd` — they are NOT affected by beads unavailability
-  - `svelte-check` passed with 0 errors and 0 warnings
+  - US-001 was already fixed by a prior partial run — always check working tree state first
+  - The linter auto-formats Svelte components — re-read files after each edit to avoid stale state
+  - Status mapping between store types and 3D scene types must happen at the page boundary
+  - Removing `as any` requires propagating typed interfaces through all parent component Props
 ---

@@ -95,9 +95,9 @@ class TasksStore {
 			inProgress,
 			completed: items.filter((t) => t.status === 'completed').length,
 			blocked,
-			// Aliases for component compatibility
-			running: inProgress,
-			failed: blocked
+			failed: items.filter((t) => t.status === 'failed').length,
+			// Alias for component compatibility
+			running: inProgress
 		};
 	}
 
