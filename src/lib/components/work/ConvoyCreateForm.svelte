@@ -20,11 +20,18 @@
 	});
 	let error = $state<string | null>(null);
 
+	/** Bead ID format: alphanumeric prefix, hyphen, 5 alphanumeric chars */
+	const BEAD_ID_RE = /^[a-zA-Z0-9]+-[a-zA-Z0-9]{5}$/;
+
 	const issues = $derived(
 		issuesText.split('\n').map(s => s.trim()).filter(Boolean)
 	);
 
-	const isValid = $derived(title.trim().length > 0 && issues.length > 0);
+	const invalidIds = $derived(
+		issues.filter(id => !BEAD_ID_RE.test(id))
+	);
+
+	const isValid = $derived(title.trim().length > 0 && issues.length > 0 && invalidIds.length === 0);
 
 	async function handleSubmit() {
 		if (!isValid || isSubmitting) return;
@@ -66,6 +73,21 @@
 		rows={5}
 		required
 	/>
+
+	{#if invalidIds.length > 0}
+		<div class="flex items-start gap-2 text-sm text-warning-400">
+			<AlertTriangle size={14} class="mt-0.5 flex-shrink-0" />
+			<div>
+				<p>Invalid issue ID{invalidIds.length > 1 ? 's' : ''}:</p>
+				<ul class="font-mono text-xs mt-1 space-y-0.5">
+					{#each invalidIds as id}
+						<li class="text-warning-300">{id}</li>
+					{/each}
+				</ul>
+				<p class="text-xs text-chrome-500 mt-1">Expected format: prefix-XXXXX (e.g. rig1-a1b2c)</p>
+			</div>
+		</div>
+	{/if}
 
 	{#if error}
 		<div class="flex items-center gap-2 text-sm text-red-400">
