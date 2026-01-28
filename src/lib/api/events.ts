@@ -2,9 +2,12 @@
  * SSE Client - Real-time event stream from Gas Town API
  */
 
-import { agentsStore, type Agent } from '$lib/stores/agents.svelte';
-import { tasksStore, type Task } from '$lib/stores/tasks.svelte';
+import { agentsStore, type Agent, type AgentRole } from '$lib/stores/agents.svelte';
+import { tasksStore, type Task, type TaskType } from '$lib/stores/tasks.svelte';
 import { rigsStore, type Rig, type RigStatus } from '$lib/stores/rigs.svelte';
+
+const VALID_AGENT_ROLES = new Set<AgentRole>(['polecat', 'witness', 'deacon', 'refinery', 'crew', 'overseer']);
+const VALID_TASK_TYPES = new Set<TaskType>(['code', 'data', 'general']);
 import { mailStore, transformMessage, type MailMessage } from '$lib/stores/mail.svelte';
 import { convoysStore, type Convoy } from '$lib/stores/convoys.svelte';
 import { feedStore, type FeedEvent } from '$lib/stores/feed.svelte';
@@ -339,12 +342,12 @@ class EventStreamClient {
 	}
 
 	#handleAgentsUpdate(data: AgentEventData) {
-		// Transform SSE data to Agent format
+		// Transform SSE data to Agent format, validating role values
 		const agents: Agent[] = data.agents.map((a) => ({
 			id: a.id,
 			name: a.name,
 			address: a.address,
-			role: a.role as Agent['role'],
+			role: VALID_AGENT_ROLES.has(a.role as AgentRole) ? (a.role as AgentRole) : 'polecat',
 			status: a.status,
 			hasWork: a.hasWork,
 			unreadMail: a.unreadMail,
@@ -356,12 +359,12 @@ class EventStreamClient {
 	}
 
 	#handleTasksUpdate(data: TaskEventData) {
-		// Transform SSE data to Task format
+		// Transform SSE data to Task format, validating type values
 		const tasks: Task[] = data.tasks.map((t) => ({
 			id: t.id,
 			title: t.title,
 			description: t.description,
-			type: t.type as Task['type'],
+			type: VALID_TASK_TYPES.has(t.type as TaskType) ? (t.type as TaskType) : 'general',
 			status: t.status,
 			priority: t.priority,
 			assignee: t.assignee,
@@ -427,7 +430,7 @@ class EventStreamClient {
 				id: a.id || a.name,
 				name: a.name,
 				address: a.address || '',
-				role: a.role.toLowerCase() as Agent['role'],
+				role: VALID_AGENT_ROLES.has(a.role.toLowerCase() as AgentRole) ? (a.role.toLowerCase() as AgentRole) : 'polecat',
 				status: a.status || 'offline',
 				hasWork: a.hasWork ?? false,
 				unreadMail: a.unreadMail ?? 0
