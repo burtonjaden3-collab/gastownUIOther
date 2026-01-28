@@ -161,10 +161,26 @@ export const api = {
 	/**
 	 * Sling work to a rig
 	 */
-	async slingWork(rigName: string, beadId: string, target?: string) {
+	async slingWork(
+		rigName: string,
+		beadId: string,
+		options?: {
+			target?: string;
+			args?: string;
+			message?: string;
+			subject?: string;
+			account?: string;
+			create?: boolean;
+			force?: boolean;
+			noConvoy?: boolean;
+		}
+	) {
 		return fetchApi<unknown>(`/api/gastown/rigs/${encodeURIComponent(rigName)}/sling`, {
 			method: 'POST',
-			body: JSON.stringify({ beadId, target })
+			body: JSON.stringify({
+				beadId,
+				...options
+			})
 		});
 	},
 

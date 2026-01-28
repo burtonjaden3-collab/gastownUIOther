@@ -105,10 +105,25 @@
 		await Promise.all([rigsStore.fetch(), agentsStore.fetch()]);
 	}
 
-	async function handleSling(beadId: string, target?: string) {
+	async function handleSling(
+		beadId: string,
+		target?: string,
+		options?: {
+			args?: string;
+			message?: string;
+			subject?: string;
+			account?: string;
+			create?: boolean;
+			force?: boolean;
+			noConvoy?: boolean;
+		}
+	) {
 		if (!selection || selection.type !== 'rig') return;
 
-		await api.slingWork(selection.rig.name, beadId, target);
+		await api.slingWork(selection.rig.name, beadId, {
+			target,
+			...options
+		});
 		await Promise.all([rigsStore.fetch(), tasksStore.fetch(), agentsStore.fetch()]);
 	}
 </script>

@@ -2,13 +2,21 @@
 	import { X, Send } from 'lucide-svelte';
 	import type { Rig } from '$lib/stores/rigs.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
-	import { Card, Button, Input, Select } from '$lib/components/core';
+	import { Card, Button, Input, Select, Textarea } from '$lib/components/core';
 
-	interface Props {
-		rig: Rig;
-		onSling: (beadId: string, target?: string) => Promise<void>;
-		onCancel: () => void;
-	}
+interface Props {
+	rig: Rig;
+	onSling: (beadId: string, target?: string, options?: {
+		args?: string;
+		message?: string;
+		subject?: string;
+		account?: string;
+		create?: boolean;
+		force?: boolean;
+		noConvoy?: boolean;
+	}) => Promise<void>;
+	onCancel: () => void;
+}
 
 	let { rig, onSling, onCancel }: Props = $props();
 
@@ -16,6 +24,13 @@
 	let target = $state('auto');
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
+	let args = $state('');
+	let message = $state('');
+	let subject = $state('');
+	let account = $state('');
+	let create = $state(true);
+	let force = $state(false);
+	let noConvoy = $state(false);
 
 	// Validation constants
 	const MAX_BEAD_ID_LENGTH = 64;
@@ -41,8 +56,10 @@
 
 	const targetOptions = $derived([
 		{ value: 'auto', label: 'Auto (spawn polecat)' },
+		{ value: 'deacon/dogs', label: 'Deacon dogs (auto idle)' },
+		{ value: 'mayor', label: 'Mayor' },
 		...rig.agents
-			.filter((a) => a.role === 'crew' || a.role === 'witness')
+			.filter((a) => a.role === 'crew' || a.role === 'witness' || a.role === 'polecat')
 			.map((a) => ({ value: a.name, label: `${a.name} (${a.role})` }))
 	]);
 
@@ -61,7 +78,15 @@
 		isLoading = true;
 
 		try {
-			await onSling(beadId.trim(), target === 'auto' ? undefined : target);
+			await onSling(beadId.trim(), target === 'auto' ? undefined : target, {
+				args: args.trim() || undefined,
+				message: message.trim() || undefined,
+				subject: subject.trim() || undefined,
+				account: account.trim() || undefined,
+				create,
+				force,
+				noConvoy
+			});
 			onCancel();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to sling work';
@@ -123,6 +148,27 @@
 				Target
 			</label>
 			<Select id="sling-target" bind:value={target} options={targetOptions} />
+		</div>
+
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+			<Input label="Account (optional)" placeholder="work / prod / ..." bind:value={account} />
+			<Input label="Subject (optional)" placeholder="Context subject" bind:value={subject} />
+		</div>
+		<Textarea label="Args / instructions" placeholder="e.g., focus on tests, skip deps" rows={2} bind:value={args} />
+		<Textarea label="Message (optional)" placeholder="Short briefing for the executor" rows={2} bind:value={message} />
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-chrome-400">
+			<label class="flex items-center gap-2">
+				<input type="checkbox" bind:checked={create} class="accent-rust-500" />
+				Create polecat if missing
+			</label>
+			<label class="flex items-center gap-2">
+				<input type="checkbox" bind:checked={force} class="accent-rust-500" />
+				Force (ignore unread mail)
+			</label>
+			<label class="flex items-center gap-2">
+				<input type="checkbox" bind:checked={noConvoy} class="accent-rust-500" />
+				Skip auto-convoy
+			</label>
 		</div>
 
 		<!-- Error message -->
