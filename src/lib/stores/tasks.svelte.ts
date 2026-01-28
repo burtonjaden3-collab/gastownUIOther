@@ -202,25 +202,6 @@ class TasksStore {
 		return this.#state.items.find((t) => t.id === id);
 	}
 
-	/**
-	 * Legacy method for mock simulation - kept for demo mode
-	 */
-	addTask(task: Omit<Task, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'labels'>): Task {
-		const newTask: Task = {
-			...task,
-			id: crypto.randomUUID(),
-			status: 'pending',
-			priority: 2,
-			assignee: null,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-			labels: []
-		};
-
-		this.#state.items = [newTask, ...this.#state.items];
-		return newTask;
-	}
-
 	updateTask(id: string, updates: Partial<Task>) {
 		this.#state.items = this.#state.items.map((task) =>
 			task.id === id ? { ...task, ...updates } : task
