@@ -9,6 +9,16 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getProcessSupervisor, type BdBead } from '$lib/server/cli';
+import { findTownRoot } from '$lib/server/cli/town-config';
+
+/**
+ * Check whether a bd error indicates a missing beads database.
+ */
+function isNoBeadsError(error: string | null): boolean {
+	if (!error) return false;
+	const lower = error.toLowerCase();
+	return lower.includes('no beads database found') || lower.includes('no beads');
+}
 
 export interface WorkItem {
 	id: string;
@@ -145,6 +155,16 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'Description is required', requestId }, { status: 400 });
 		}
 
+		if (priority !== undefined) {
+			const p = Number(priority);
+			if (!Number.isInteger(p) || p < 0 || p > 4) {
+				return json(
+					{ error: 'Priority must be an integer between 0 and 4', requestId },
+					{ status: 400 }
+				);
+			}
+		}
+
 		const bdType = BD_TYPE_MAP[type] || 'task';
 
 		const args = [
@@ -160,12 +180,38 @@ export const POST: RequestHandler = async ({ request }) => {
 			args.push(`--description=${description}`);
 		}
 
-		const result = await supervisor.bd<BdBead>(args, { timeout: 30_000 });
+		let result = await supervisor.bd<BdBead>(args, { timeout: 30_000 });
+
+		// Auto-initialize beads database if missing, then retry
+		if (!result.success && isNoBeadsError(result.error)) {
+			let townRoot: string | undefined;
+			try {
+				townRoot = findTownRoot();
+			} catch {
+				// Town root not found — can't auto-init
+			}
+
+			if (townRoot) {
+				const initResult = await supervisor.bd(['init', '--quiet'], {
+					cwd: townRoot,
+					timeout: 15_000
+				});
+
+				if (initResult.success) {
+					// Retry the create command after successful init
+					result = await supervisor.bd<BdBead>(args, { timeout: 30_000 });
+				}
+			}
+		}
 
 		if (!result.success) {
+			const friendly = isNoBeadsError(result.error)
+				? 'Beads database is not initialized. Run "bd init" in your town root directory.'
+				: result.error || 'Failed to create work item';
+
 			return json(
 				{
-					error: result.error || 'Failed to create work item',
+					error: friendly,
 					requestId
 				},
 				{ status: 500 }
