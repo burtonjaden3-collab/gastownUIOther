@@ -65,7 +65,7 @@
 		{#if visibleLogs.length === 0}
 			<p class="text-chrome-600">No logs available</p>
 		{:else}
-			{#each visibleLogs as log (log.timestamp + log.message)}
+			{#each visibleLogs as log, index (log.timestamp + log.message + index)}
 				<div class="flex gap-2">
 					<span class="text-chrome-600 flex-shrink-0">{log.timestamp}</span>
 					<span class="uppercase w-12 flex-shrink-0 {levelColors[log.level] || 'text-chrome-400'}">[{log.level}]</span>
