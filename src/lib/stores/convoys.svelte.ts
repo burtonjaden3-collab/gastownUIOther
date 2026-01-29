@@ -139,6 +139,10 @@ class ConvoysStore {
 	setItems(convoys: Convoy[]) {
 		this.#state.items = convoys;
 		this.#state.lastFetch = new Date();
+
+		if (this.#state.selectedId && !convoys.some((c) => c.id === this.#state.selectedId)) {
+			this.#state.selectedId = null;
+		}
 	}
 }
 

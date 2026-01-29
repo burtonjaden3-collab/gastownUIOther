@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Clock, Loader2, CheckCircle2, XCircle, Tag, User, Hash, Crosshair } from 'lucide-svelte';
 	import { Badge, Card } from '$lib/components/core';
+	import { feedStore } from '$lib/stores/feed.svelte';
 	import type { Task } from '$lib/stores/tasks.svelte';
 
 	interface Props {
@@ -20,6 +21,12 @@
 
 	const config = $derived(statusConfig[task.status] || statusConfig.pending);
 	const canSling = $derived(task.status === 'pending' && !task.assignee);
+
+	const recentEvents = $derived(
+		feedStore.items
+			.filter((e) => e.message?.includes(task.id) || e.source === task.id || e.actor === task.assignee)
+			.slice(0, 5)
+	);
 </script>
 
 <div class="p-4 space-y-4">
@@ -69,6 +76,23 @@
 				</div>
 			{/if}
 		</div>
+	</Card>
+
+	<!-- Recent Activity -->
+	<Card title="Recent Activity">
+		{#if recentEvents.length === 0}
+			<p class="text-xs text-chrome-500 font-mono">No recent events for this task</p>
+		{:else}
+			<ul class="space-y-1 text-sm text-chrome-300">
+				{#each recentEvents as event}
+					<li class="flex items-center gap-2">
+						<span class="text-xs text-chrome-500 font-mono">{event.timestamp}</span>
+						<span class="text-rust-400 font-mono">{event.actor}</span>
+						<span class="truncate">{event.message}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	</Card>
 
 	<!-- Sling hint -->

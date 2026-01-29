@@ -1,267 +1,182 @@
 {
   "project": "GasTownUI",
-  "branchName": "ralph/wasteland-animations-p3-p5",
-  "description": "Wasteland Dashboard Animations Phases 3-5: Vehicle convoy (task-to-vehicle mapping), War Boy agents, and polish (shaders, sparks, reduced-motion fallback). Phases 1-2 (static scene + load-reactive citadel) are already complete.",
+  "projectPath": "/home/jaden-burton/gt/gastownUIOther",
+  "branchName": "ralph/fix-dashboard-visual-bugs",
+  "description": "Fix 12 dashboard visual bugs: agent state mismatch, $derived misuse, Canvas double-mount, SSR crash, shared material opacity, stats alias, null safety, lifecycle, z-fighting, frame-rate spawning, and type safety.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add vehicle and War Boy color tokens to colors.ts",
-      "description": "As a developer, I need color constants for vehicles, War Boys, and spark particles so that later components reference the shared palette.",
+      "title": "Fix agent state type mismatch ('running' vs 'busy')",
+      "description": "As a user, I want running agents to appear on their assigned vehicles in the 3D scene so that the visualization accurately represents which agents are working.",
       "acceptanceCriteria": [
-        "Add 'vehicle' section to WASTELAND object with keys: body (chrome-600 #8b939e), accentPR (rust-500 #c2410c), accentIssue (chrome-500 #a1a1aa), exhaust (flame-500 #f97316), blocked (warning-400 #fbbf24), failed (oil-900 #3d3d3d), headlight (#fef3c7)",
-        "Add 'warBoy' section with keys: body (chrome-300 #d1d5db), highlight (chrome-200 #e5e7eb)",
-        "Add 'spark' key to flame section: spark (flame-400 #fb923c)",
-        "Existing color values unchanged",
-        "Typecheck passes"
+        "WarBoyManager.svelte checks for 'running' instead of 'busy' (or +page.svelte maps 'running' to 'busy')",
+        "WarBoy.svelte Props interface accepts 'running' in its agentState union type",
+        "WarBoy.svelte treats 'running' the same as the current 'busy' behavior (shows arms, no idle sway)",
+        "Running agents are positioned on top of their assigned vehicle in the 3D scene, not on the citadel platforms",
+        "Idle agents still appear on citadel platforms",
+        "Offline agents still render nothing",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Critical: the entire agent-on-vehicle mechanic is broken. AgentStatus is 'running'|'idle'|'offline' but WarBoyManager checks for 'busy'. Files: src/routes/+page.svelte (line 79), src/lib/components/wasteland/WarBoyManager.svelte (line 35), src/lib/components/wasteland/WarBoy.svelte (line 6)."
     },
     {
       "id": "US-002",
-      "title": "Create Vehicle.svelte procedural mesh component",
-      "description": "As a developer, I need a single vehicle 3D component with procedural geometry (box body, cylinder wheels, exhaust pipe) that renders in the wasteland scene.",
+      "title": "Fix VehicleConvoy $derived misuse",
+      "description": "As a developer, I want groupedTasks to use Svelte 5's $derived.by() so the grouping result is cached instead of recomputed on every access.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/Vehicle.svelte",
-        "Props interface: { status: 'pending' | 'running' | 'completed' | 'blocked' | 'failed', taskType?: 'pr' | 'issue', x: number, z: number }",
-        "Vehicle geometry: box body (1.2 x 0.5 x 0.6), 4 cylinder wheels (radius 0.12), small box exhaust pipe at rear",
-        "Body color uses WASTELAND.vehicle.body, accent color from taskType (pr=accentPR, issue=accentIssue)",
-        "Blocked vehicles get emissive pulse on material using $effect with Math.sin animation cycling WASTELAND.vehicle.blocked",
-        "Failed vehicles use WASTELAND.vehicle.failed color, no emissive",
-        "Pending vehicles have a point light at front (headlight, WASTELAND.vehicle.headlight, intensity 0.3)",
-        "Component renders correctly when placed in WastelandScene",
-        "Typecheck passes"
+        "VehicleConvoy.svelte line 19 changed from $derived(() => { ... }) to $derived.by(() => { ... })",
+        "All call sites updated: groupedTasks is now accessed as a value (not called as groupedTasks())",
+        "computePosition accesses groupedTasks directly instead of calling it as a function",
+        "Vehicle positions still compute correctly for all 5 statuses (pending, running, completed, blocked, failed)",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "All geometry is procedural — no external model files. Keep under 150 lines."
+      "passes": true,
+      "notes": "$derived(() => {...}) wraps the function itself, not the result. groupedTasks is a function reference, not the grouped object. Use $derived.by() for function bodies."
     },
     {
       "id": "US-003",
-      "title": "Create VehicleExhaust.svelte particle emitter",
-      "description": "As a developer, I need exhaust particles trailing behind running vehicles.",
+      "title": "Fix FlameStack $derived misuse",
+      "description": "As a developer, I want flameColor to use $derived.by() so the color is cached and Three.js Color objects are not re-allocated on every render.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/VehicleExhaust.svelte",
-        "Props: { active: boolean, x: number, z: number }",
-        "Uses THREE.Points with BufferGeometry (max 30 particles per vehicle)",
-        "Particles spawn at exhaust pipe position, drift backward and upward, fade out",
-        "Color: WASTELAND.vehicle.exhaust with opacity fade",
-        "Particles only spawn when active=true (running status)",
-        "Animation uses useFrame from @threlte/core or $effect with requestAnimationFrame",
-        "Typecheck passes"
+        "FlameStack.svelte line 31 changed from $derived(() => { ... }) to $derived.by(() => { ... })",
+        "Lines 68-69 updated to use flameColor as a value (not flameColor())",
+        "Flame color still interpolates correctly between dim and inferno based on intensity prop",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Particle count kept low per vehicle since multiple vehicles will be on screen."
+      "passes": true,
+      "notes": "Same $derived misuse pattern as US-002. flameColor is a function, not a color string. Lines 68-69 call flameColor() which re-allocates 3 THREE.Color objects each time."
     },
     {
       "id": "US-004",
-      "title": "Create VehicleConvoy.svelte to map tasks to vehicles",
-      "description": "As a developer, I need a manager component that maps tasksStore items to Vehicle instances with correct positioning and lifecycle.",
+      "title": "Fix WastelandHero mountKey causing Canvas double-mount",
+      "description": "As a user, I want the 3D scene to mount cleanly without a visible flash or unnecessary WebGL context churn.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/VehicleConvoy.svelte",
-        "Props: { tasks: Array<{ id: string, status: string, type?: string }> }",
-        "Pending tasks position vehicles in staging area (x < -frustumW/2 + 2, slight z variation per vehicle)",
-        "Running tasks position vehicles across the desert road, evenly distributed between staging area and citadel",
-        "Completed tasks position vehicles at citadel gate area (x > frustumW/2 - 2) with opacity fading to 0",
-        "Blocked tasks stop at their current x position",
-        "Failed tasks stop at current x with slight z offset (roadside)",
-        "Each Vehicle has a VehicleExhaust with active=true only when status is 'running' or 'pending'",
-        "Vehicles use {#each tasks as task (task.id)} for keyed rendering",
-        "Typecheck passes"
+        "The $effect that sets mountKey = Date.now() on lines 17-20 of WastelandHero.svelte is removed or replaced with a stable key that does not cause double-mount",
+        "Canvas is created exactly once per component mount (no destroy-and-recreate cycle)",
+        "3D scene still renders correctly after navigation to and from the dashboard (no black screen regression)",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Position transitions should be smooth — use $effect to tween x positions over ~1.5s."
+      "passes": true,
+      "notes": "The previous black-screen fix (US-001 from prior run) introduced a {#key mountKey} block. The mountKey $effect runs on mount, changes the key, destroying and recreating Canvas. Fix: use a stable key (e.g., crypto.randomUUID() called once) or remove the effect and set mountKey directly in the initializer. The {#key} block itself should be kept to handle navigation remount — just stop it from triggering an extra cycle."
     },
     {
       "id": "US-005",
-      "title": "Integrate VehicleConvoy into WastelandScene",
-      "description": "As a developer, I need WastelandScene to accept tasks prop and render the vehicle convoy.",
+      "title": "Fix SSR crash from window.matchMedia in WastelandHero",
+      "description": "As a developer, I want the reduced motion detection to be SSR-safe so the app does not crash during server-side rendering.",
       "acceptanceCriteria": [
-        "WastelandScene.svelte Props updated: add tasks?: Array<{ id: string, status: string, type?: string }>",
-        "Import and render VehicleConvoy component, passing tasks prop",
-        "Default tasks to empty array if not provided",
-        "Scene still renders correctly with no tasks (empty convoy)",
-        "Scene renders vehicles when tasks array is populated",
-        "Typecheck passes"
+        "The $effect on lines 25-33 of WastelandHero.svelte guards against non-browser environments using the browser import from $app/environment",
+        "The app builds successfully with vite build (SSR pass does not crash)",
+        "Reduced motion preference is still detected correctly in the browser",
+        "MediaQueryList listener is still cleaned up on unmount",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "$effect blocks run during SSR. The window.matchMedia call on line 26 crashes with 'ReferenceError: window is not defined'. Add: if (!browser) return; at the top of the effect. The browser import is already available in the file from line 3."
     },
     {
       "id": "US-006",
-      "title": "Create DustSystem.svelte ambient particle system",
-      "description": "As a developer, I need ambient sand/dust particles drifting across the desert that scale with system load.",
+      "title": "Fix VehicleExhaust shared material opacity",
+      "description": "As a user, I want exhaust particles to not have a global opacity flicker caused by per-particle opacity overwrites on the shared material.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/particles/DustSystem.svelte",
-        "Props: { intensity: number } (0-1, maps to load/100)",
-        "Uses THREE.Points with BufferGeometry, max 200 particles",
-        "Particles drift right-to-left at ground level, recycle when off-screen",
-        "Particle count scales with intensity: intensity=0 shows ~20 particles, intensity=1 shows 200",
-        "Color: WASTELAND.desert.duneA with low opacity",
-        "Typecheck passes"
+        "VehicleExhaust.svelte line 113 no longer overwrites the shared material.opacity inside the per-particle loop",
+        "Fix: remove the per-particle material.opacity line and keep the material at a fixed opacity (0.6)",
+        "Exhaust particles are visible and render without errors",
+        "Material cleanup (dispose()) still works correctly on unmount",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "All 30 particles share a single PointsMaterial. Line 113 overwrites material.opacity on each loop iteration, so all particles end up with the last particle's opacity. Simplest fix: remove the opacity mutation line entirely."
     },
     {
       "id": "US-007",
-      "title": "Integrate DustSystem into WastelandScene",
-      "description": "As a developer, I need the dust particle system rendering in the scene, driven by load.",
+      "title": "Fix taskStats.failed aliasing to blocked count",
+      "description": "As a developer, I want taskStats.failed to return the actual count of failed tasks, not the blocked count.",
       "acceptanceCriteria": [
-        "Import DustSystem in WastelandScene.svelte",
-        "Render DustSystem with intensity={load / 100}",
-        "Dust visible at any load level above 0",
-        "Typecheck passes"
+        "tasks.svelte.ts stats getter: failed property counts tasks with status === 'failed' (not aliased to blocked)",
+        "The stats getter returns correct counts for all 5 statuses: pending, in_progress (running alias), completed, blocked, failed",
+        "No other component breaks from this change",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Line 100 has 'failed: blocked' which is wrong — 'failed' is a real TaskStatus. Fix: add a separate filter for status === 'failed'. File: src/lib/stores/tasks.svelte.ts"
     },
     {
       "id": "US-008",
-      "title": "Create WarBoy.svelte agent figure component",
-      "description": "As a developer, I need a simple humanoid figure (capsule body + sphere head) representing an agent.",
+      "title": "Add null check in SparkSystem geometry attribute access",
+      "description": "As a developer, I want SparkSystem to safely check for geometry attributes before updating them to avoid runtime crashes.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/WarBoy.svelte",
-        "Props: { state: 'idle' | 'busy' | 'offline', x: number, y: number, z: number }",
-        "Geometry: capsule body (radius 0.08, height 0.3), sphere head (radius 0.06) on top",
-        "Color: WASTELAND.warBoy.body (chrome-300)",
-        "Idle state: slight Y-axis sway animation (sine wave, +-0.02 units, 2s period)",
-        "Busy state: arms-raised pose (two small box arms angled upward at 45 degrees)",
-        "Offline state: component returns null / not rendered",
-        "Typecheck passes"
+        "SparkSystem.svelte line 94: add existence check before accessing geometry.attributes.position",
+        "Pattern: if (geometry.attributes.position) { geometry.attributes.position.needsUpdate = true; }",
+        "No runtime errors when the animation loop fires before geometry is initialized",
+        "Spark particles still animate correctly when active",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Stick-figure proportions. Recognizable as human at small scale without skeletal animation."
+      "passes": true,
+      "notes": "Race condition: useTask animation loop can fire before the $effect creates the geometry attribute. File: src/lib/components/wasteland/particles/SparkSystem.svelte"
     },
     {
       "id": "US-009",
-      "title": "Create WarBoyManager.svelte to map agents to figures",
-      "description": "As a developer, I need a manager component that places War Boy figures on citadel platforms (idle) or on vehicles (busy).",
+      "title": "Refactor CitadelGroup SmokeEmitter lifecycle",
+      "description": "As a user, I want smoke to not visually jump when load bands change — keep SmokeEmitters always mounted with density prop instead of conditional rendering.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/WarBoyManager.svelte",
-        "Props: { agents: Array<{ name: string, state: string, assignedTask?: string }>, tasks: Array<{ id: string, status: string }> }",
-        "Idle agents positioned on citadel platforms (x around citadel area, y elevated on platforms, spaced in z)",
-        "Busy agents positioned on top of their assigned vehicle (match task id to find vehicle x position)",
-        "Offline agents not rendered",
-        "Keyed rendering with {#each agents as agent (agent.name)}",
-        "Typecheck passes"
+        "CitadelGroup.svelte lines 103-148: SmokeEmitter components are always mounted (not conditionally rendered with {#if})",
+        "SmokeEmitter receives a density prop of 0 when its stack is not lit (instead of being destroyed)",
+        "When density is 0, SmokeEmitter hides all particles below ground (existing behavior in useTask loop)",
+        "No visual jump when smoke toggles on/off",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Position transitions between idle and busy can be instant for now — smooth tweens are Phase 5 polish."
+      "passes": true,
+      "notes": "Currently {#if stackALit} destroys/recreates SmokeEmitter on toggle, causing particle position jumps and memory churn. Move the conditional into the density prop instead."
     },
     {
       "id": "US-010",
-      "title": "Integrate WarBoyManager into WastelandScene",
-      "description": "As a developer, I need WastelandScene to accept agents prop and render the War Boy manager.",
+      "title": "Fix DesertFloor z-fighting between ground planes",
+      "description": "As a user, I want the desert foreground strip to render cleanly without flickering artifacts.",
       "acceptanceCriteria": [
-        "WastelandScene.svelte Props updated: add agents?: Array<{ name: string, state: string, assignedTask?: string }>",
-        "Import and render WarBoyManager, passing agents and tasks props",
-        "Default agents to empty array if not provided",
-        "Scene renders War Boys on citadel when agents have idle state",
-        "Scene renders War Boys on vehicles when agents have busy state with assignedTask matching a task id",
-        "Typecheck passes"
+        "DesertFloor.svelte line 13: increase the Y offset of the foreground strip from -0.98 to -0.93 (0.07 unit gap from main ground at -1.0)",
+        "Visual appearance of the desert floor is preserved (foreground strip still reads as a distinct lighter area)",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Two overlapping planes at y=-1.0 and y=-0.98 (only 0.02 gap). Increase to 0.07 gap to prevent z-fighting on all GPUs. File: src/lib/components/wasteland/DesertFloor.svelte"
     },
     {
       "id": "US-011",
-      "title": "Update WastelandHero to pass tasks and agents to scene",
-      "description": "As a user, I want the dashboard hero to show vehicles for tasks and War Boys for agents from real store data.",
+      "title": "Fix frame-rate dependent particle spawning in VehicleExhaust",
+      "description": "As a developer, I want exhaust particle spawn rate to be consistent across different display refresh rates.",
       "acceptanceCriteria": [
-        "WastelandHero.svelte Props updated: add tasks and agents props matching WastelandScene's expected types",
-        "Props passed through to WastelandScene component",
-        "index.ts barrel export still exports WastelandHero",
-        "Typecheck passes"
+        "VehicleExhaust.svelte lines 86-90: replace Math.random() < 0.3 per-frame check with a time-accumulator approach using the delta parameter",
+        "Target spawn rate: approximately 5-6 particles per second regardless of frame rate",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Current code: if (Math.random() < 0.3) spawns per frame. At 60fps that's ~18 particles/sec, at 120fps ~36/sec. Fix: add a spawnTimer accumulator, spawn when timer exceeds threshold (e.g., 0.18s). File: src/lib/components/wasteland/VehicleExhaust.svelte"
     },
     {
       "id": "US-012",
-      "title": "Create SparkSystem.svelte for critical load sparks",
-      "description": "As a developer, I need spark particles bursting from citadel stacks when load exceeds 80%.",
+      "title": "Remove unsafe 'as any' type assertion in VehicleConvoy",
+      "description": "As a developer, I want type safety when passing task status to Vehicle so mismatches are caught at compile time.",
       "acceptanceCriteria": [
-        "Create src/lib/components/wasteland/particles/SparkSystem.svelte",
-        "Props: { active: boolean }",
-        "Uses THREE.Points with max 50 particles",
-        "Sparks emit from citadel stack positions (y=3-4, x around citadel area)",
-        "Particles shoot upward and outward with gravity falloff, short lifespan (~0.5s)",
-        "Color: WASTELAND.flame.spark (flame-400)",
-        "Only emits when active=true",
-        "Typecheck passes"
+        "VehicleConvoy.svelte line 108: remove 'as any' from status and taskType prop assignments",
+        "Either narrow the type in VehicleConvoy's Props interface to match Vehicle's expected union, or widen Vehicle's Props to accept string with a fallback",
+        "TypeScript catches invalid status values at compile time",
+        "Typecheck passes (npx svelte-check)"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "Integrate SparkSystem into WastelandScene at critical load",
-      "description": "As a user, I want sparks to fly from the citadel when system load is critical (>80%).",
-      "acceptanceCriteria": [
-        "Import SparkSystem in WastelandScene.svelte",
-        "Render SparkSystem with active={band === 'critical'}",
-        "Sparks only visible when load > 80%",
-        "Typecheck passes"
-      ],
-      "priority": 13,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "Add reduced-motion fallback to WastelandHero",
-      "description": "As a user who prefers reduced motion, I want a static fallback instead of the animated 3D scene.",
-      "acceptanceCriteria": [
-        "WastelandHero.svelte detects prefers-reduced-motion media query using $state and matchMedia",
-        "When reduced motion is preferred, render a static SVG silhouette instead of the Canvas",
-        "SVG shows simplified citadel outline, desert horizon line, and sky gradient using Gas Town theme colors",
-        "SVG is full-width, same height as canvas (300px)",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": false,
-      "notes": "The SVG doesn't need to be complex — a simplified silhouette that matches the scene's visual identity."
-    },
-    {
-      "id": "US-015",
-      "title": "Add canvas vibration effect at critical load",
-      "description": "As a user, I want subtle visual vibration on the scene when load is critical to convey urgency.",
-      "acceptanceCriteria": [
-        "WastelandHero.svelte applies a CSS transform translateX/translateY shake when load > 80%",
-        "Shake is subtle: random +-1px offset at ~15Hz using $effect with setInterval",
-        "Shake only active when band is 'critical'",
-        "Does not apply when prefers-reduced-motion is active",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-016",
-      "title": "Update barrel exports and CLAUDE.md layout",
-      "description": "As a developer, I need the barrel exports and codebase layout documentation updated to reflect all new wasteland components.",
-      "acceptanceCriteria": [
-        "src/lib/components/wasteland/index.ts exports WastelandHero (already done — verify still correct)",
-        "particles/ directory has its own index.ts exporting DustSystem, SparkSystem",
-        ".claude/CLAUDE.md codebase layout updated: wasteland section lists all new components (Vehicle, VehicleConvoy, VehicleExhaust, WarBoy, WarBoyManager, particles/DustSystem, particles/SparkSystem)",
-        "Typecheck passes"
-      ],
-      "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Vehicle expects status: 'pending'|'running'|'completed'|'blocked'|'failed' but VehicleConvoy passes task.status (typed as string) with 'as any'. Fix: type the Props tasks array with the correct status union. File: src/lib/components/wasteland/VehicleConvoy.svelte"
     }
   ]
 }

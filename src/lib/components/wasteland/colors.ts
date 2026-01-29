@@ -21,11 +21,25 @@ export const WASTELAND = {
 	light: {
 		warm: '#f9b8a0',      // rust-300
 	},
+	vehicle: {
+		body: '#8b939e',      // chrome-600
+		accentPR: '#c2410c',  // rust-500
+		accentIssue: '#a1a1aa', // chrome-500
+		exhaust: '#f97316',   // flame-500
+		blocked: '#fbbf24',   // warning-400
+		failed: '#3d3d3d',    // oil-900
+		headlight: '#fef3c7', // warm headlight glow
+	},
+	warBoy: {
+		body: '#d1d5db',      // chrome-300
+		highlight: '#e5e7eb', // chrome-200
+	},
 	flame: {
 		dim: '#9a3412',       // flame-800
 		medium: '#ea580c',    // flame-600
 		bright: '#fb923c',    // flame-400
 		inferno: '#f97316',   // flame-500
+		spark: '#fb923c',     // flame-400
 	},
 	smoke: {
 		light: '#6b7280',     // exhaust-500

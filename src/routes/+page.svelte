@@ -73,7 +73,15 @@
 	onToggleDetail={handleToggleDetail}
 />
 
-<WastelandHero load={agentStats.avgLoad} />
+<WastelandHero
+	load={agentStats.avgLoad}
+	tasks={tasksStore.items.map(t => ({
+		id: t.id,
+		status: t.status === 'in_progress' ? 'running' : t.status,
+		type: t.type === 'code' ? 'pr' : t.type === 'data' ? 'issue' : undefined
+	}))}
+	agents={agentsStore.items.map(a => ({ name: a.name, state: a.status, assignedTask: a.currentTask }))}
+/>
 
 {#if agentsStore.error || tasksStore.error}
 	<ErrorAlert message={agentsStore.error || tasksStore.error || ''} onRetry={handleRefresh} />

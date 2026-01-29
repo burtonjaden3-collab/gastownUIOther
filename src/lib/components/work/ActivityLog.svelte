@@ -42,9 +42,9 @@
 		<span class="text-xs font-mono text-chrome-600 ml-1">({workEvents.length})</span>
 		<div class="ml-auto">
 			{#if expanded}
-				<ChevronDown size={14} class="text-chrome-500" />
-			{:else}
 				<ChevronUp size={14} class="text-chrome-500" />
+			{:else}
+				<ChevronDown size={14} class="text-chrome-500" />
 			{/if}
 		</div>
 	</button>

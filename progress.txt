@@ -1,6 +1,43 @@
-# Ralph Progress — Wasteland Animations P3-P5
+# Ralph Progress — Fix Dashboard Visual Bugs
 
 Project: GasTownUI
-Branch: ralph/wasteland-animations-p3-p5
-Stories: 16
-Completed: 0
+Branch: ralph/fix-dashboard-visual-bugs
+Stories: 12
+Completed: 12
+
+## Codebase Patterns
+- Three.js geometry/material objects must be created inside `$effect()` with disposal in cleanup, never as module-level constants — module-level Three.js objects survive component remount but reference a destroyed WebGL context
+- Particle system components (DustSystem, SparkSystem, VehicleExhaust) use `{#if geometry && material}` guards before rendering `<T.Points>`
+- SmokeEmitter uses inline `<T.BufferGeometry>` and `<T.PointsMaterial>` which Threlte manages — this pattern is safe for remount
+- Svelte 5: use `$derived(expr)` for simple expressions, `$derived.by(() => { ... })` for function bodies — `$derived(() => { ... })` stores the function itself, not the result
+- Svelte 5: `$effect` blocks run during SSR — always guard browser API access with `if (!browser) return;` using the import from `$app/environment`
+- AgentStatus from the store is `'running' | 'idle' | 'offline'` — components expecting different terms (e.g., 'busy') need a mapping
+- Typecheck command: `npx svelte-check` (NOT `tsc --noEmit`)
+
+- TaskStatus uses `in_progress` but 3D scene expects `running` — map at the +page.svelte boundary when passing tasks to WastelandHero
+- TaskType (`code`|`data`|`general`) needs mapping to Vehicle types (`pr`|`issue`) at the boundary
+- When tightening types (removing `as any`), propagate the typed interface through Props of all parent components (WastelandHero → WastelandScene → VehicleConvoy)
+
+---
+
+## 2026-01-27 - US-001 through US-012 (all 12 stories)
+- Implemented all 12 dashboard visual bug fixes in a single iteration
+- Files changed:
+  - src/lib/components/wasteland/WarBoy.svelte (US-001: already had running state)
+  - src/lib/components/wasteland/WarBoyManager.svelte (US-001: already had running state)
+  - src/lib/components/wasteland/VehicleConvoy.svelte (US-002: $derived.by, US-012: typed Props, removed as any)
+  - src/lib/components/wasteland/FlameStack.svelte (US-003: $derived.by, removed () calls)
+  - src/lib/components/wasteland/WastelandHero.svelte (US-004: stable mountKey, US-005: SSR browser guard)
+  - src/lib/components/wasteland/WastelandScene.svelte (typed Props for tasks)
+  - src/lib/components/wasteland/VehicleExhaust.svelte (US-006: removed material.opacity mutation, US-011: time-accumulator spawning)
+  - src/lib/stores/tasks.svelte.ts (US-007: fixed failed stat aliasing)
+  - src/lib/components/wasteland/particles/SparkSystem.svelte (US-008: null check)
+  - src/lib/components/wasteland/CitadelGroup.svelte (US-009: always-mounted SmokeEmitters)
+  - src/lib/components/wasteland/DesertFloor.svelte (US-010: z-fighting gap increased)
+  - src/routes/+page.svelte (status mapping in_progress→running, type mapping code→pr)
+- **Learnings for future iterations:**
+  - US-001 was already fixed by a prior partial run — always check working tree state first
+  - The linter auto-formats Svelte components — re-read files after each edit to avoid stale state
+  - Status mapping between store types and 3D scene types must happen at the page boundary
+  - Removing `as any` requires propagating typed interfaces through all parent component Props
+---

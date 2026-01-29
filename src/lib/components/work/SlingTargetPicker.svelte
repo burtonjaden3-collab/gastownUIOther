@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { Crosshair } from 'lucide-svelte';
-	import { Button, Select, ConfirmDialog } from '$lib/components/core';
+	import { Button, Select, ConfirmDialog, Input, Textarea } from '$lib/components/core';
 	import { rigsStore } from '$lib/stores/rigs.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import { api } from '$lib/api/client';
 
 	interface Props {
@@ -16,6 +17,13 @@
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
 	let showConfirm = $state(false);
+	let args = $state('');
+	let message = $state('');
+	let subject = $state('');
+	let account = $state('');
+	let create = $state(true);
+	let force = $state(false);
+	let noConvoy = $state(false);
 
 	const runningRigs = $derived(
 		rigsStore.items.filter(r => r.status === 'active')
@@ -30,11 +38,18 @@
 	);
 
 	const targetOptions = $derived.by(() => {
-		const opts = [{ value: 'auto', label: 'Auto (spawn polecat)' }];
+		const opts = [
+			{ value: 'auto', label: 'Auto (spawn polecat)' },
+			{ value: 'deacon/dogs', label: 'Deacon dogs (auto idle)' },
+			{ value: 'mayor', label: 'Mayor' }
+		];
 		if (currentRig) {
 			for (const agent of currentRig.agents) {
-				if (agent.role === 'crew' || agent.role === 'witness') {
+				if (agent.role === 'crew' || agent.role === 'witness' || agent.role === 'polecat') {
 					opts.push({ value: agent.name, label: `${agent.name} (${agent.role})` });
+				}
+				if (agent.role === 'polecat') {
+					opts.push({ value: `${currentRig.name}/${agent.name}`, label: `${agent.name} (polecat @ ${currentRig.name})` });
 				}
 			}
 		}
@@ -53,12 +68,22 @@
 		error = null;
 
 		try {
-			await api.slingWork(selectedRig, beadId, target === 'auto' ? undefined : target);
+			await api.slingWork(selectedRig, beadId, {
+				target: target === 'auto' ? undefined : target,
+				args: args.trim() || undefined,
+				message: message.trim() || undefined,
+				subject: subject.trim() || undefined,
+				account: account.trim() || undefined,
+				create,
+				force,
+				noConvoy
+			});
 			showConfirm = false;
+			toastStore.success(`Slung ${beadId} to ${selectedRig}${target !== 'auto' ? ` (${target})` : ''}`);
 			onSlung();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to sling work';
-			showConfirm = false;
+			toastStore.error(error);
 		} finally {
 			isLoading = false;
 		}
@@ -70,6 +95,12 @@
 		<div class="p-6 text-center">
 			<p class="text-chrome-400 text-sm">No rigs are running.</p>
 			<p class="text-chrome-500 text-xs mt-1">Start a rig from the Fleet page first.</p>
+			<a
+				href="/rigs"
+				class="inline-flex items-center justify-center mt-3 px-3 py-2 text-xs font-stencil uppercase tracking-wider rounded-sm border border-rust-500 text-rust-300 hover:bg-rust-600/20 transition-colors"
+			>
+				Go to Rigs
+			</a>
 		</div>
 	{:else}
 		<Select
@@ -85,6 +116,24 @@
 				options={targetOptions}
 				bind:value={target}
 			/>
+			<Input label="Account (optional)" placeholder="work / prod / ..." bind:value={account} />
+			<Textarea label="Args / instructions" placeholder="e.g., focus on tests, skip deps" rows={2} bind:value={args} />
+			<Input label="Subject (optional)" placeholder="Context subject" bind:value={subject} />
+			<Textarea label="Message (optional)" placeholder="Short briefing for the executor" rows={2} bind:value={message} />
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-xs text-chrome-400">
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={create} class="accent-rust-500" />
+					Create polecat if missing
+				</label>
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={force} class="accent-rust-500" />
+					Force (ignore unread mail)
+				</label>
+				<label class="flex items-center gap-2">
+					<input type="checkbox" bind:checked={noConvoy} class="accent-rust-500" />
+					Skip auto-convoy
+				</label>
+			</div>
 		{/if}
 
 		{#if error}

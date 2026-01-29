@@ -8,8 +8,12 @@ export const GET: RequestHandler = async ({ params }) => {
 	const { id } = params;
 
 	try {
-		const result = await supervisor.gt(['mol', 'show', id, '--json'], { timeout: 15_000 });
+		const result = await supervisor.gt(['mol', 'progress', id, '--json'], { timeout: 15_000 });
 		if (!result.success) {
+			const errorMsg = result.error ?? '';
+			if (errorMsg.toLowerCase().includes('no beads database found')) {
+				return json({ data: null, requestId, duration: result.duration });
+			}
 			return json({ data: null, requestId, error: result.error }, { status: 503 });
 		}
 		return json({ data: result.data, requestId, duration: result.duration });

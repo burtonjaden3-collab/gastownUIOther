@@ -2,12 +2,13 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getProcessSupervisor, getRigNames } from '$lib/server/cli';
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ url }) => {
 	const requestId = crypto.randomUUID();
 	const supervisor = getProcessSupervisor();
 
 	try {
-		const rigNames = await getRigNames();
+		const rigParam = url.searchParams.get('rig');
+		const rigNames = rigParam ? [rigParam] : await getRigNames();
 		if (rigNames.length === 0) {
 			return json({ items: [], total: 0, requestId });
 		}

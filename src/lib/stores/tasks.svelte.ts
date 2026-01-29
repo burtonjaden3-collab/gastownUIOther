@@ -4,6 +4,28 @@
  */
 
 import { api } from '$lib/api/client';
+import { z } from 'zod';
+
+const TaskSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	description: z.string(),
+	type: z.string(),
+	status: z.string(),
+	priority: z.number(),
+	assignee: z.string().nullable(),
+	createdAt: z.string(),
+	updatedAt: z.string(),
+	labels: z.array(z.string())
+});
+
+const WorkListResponseSchema = z.object({
+	items: z.array(TaskSchema).optional()
+});
+
+const TaskDetailResponseSchema = z.object({
+	item: TaskSchema.optional()
+});
 
 export type TaskType = 'code' | 'data' | 'general';
 export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed';
@@ -95,9 +117,9 @@ class TasksStore {
 			inProgress,
 			completed: items.filter((t) => t.status === 'completed').length,
 			blocked,
-			// Aliases for component compatibility
-			running: inProgress,
-			failed: blocked
+			failed: items.filter((t) => t.status === 'failed').length,
+			// Alias for component compatibility
+			running: inProgress
 		};
 	}
 
@@ -119,8 +141,14 @@ class TasksStore {
 		this.#state.error = null;
 
 		try {
-			const response = (await api.getWork(filters)) as WorkListResponse;
-			this.#state.items = response.items || [];
+			const raw = await api.getWork(filters);
+			const parsed = WorkListResponseSchema.safeParse(raw);
+			if (!parsed.success) {
+				this.#state.error = 'Invalid work list response from API';
+				console.error('Work list validation failed:', parsed.error);
+				return;
+			}
+			this.#state.items = (parsed.data.items || []) as Task[];
 			this.#state.lastFetch = new Date();
 		} catch (e) {
 			// Preserve existing items on fetch failure — don't wipe stale data
@@ -144,17 +172,23 @@ class TasksStore {
 		this.#state.error = null;
 
 		try {
-			const response = (await api.createWork({
+			const raw = await api.createWork({
 				title: task.title,
 				description: task.description,
 				type: task.type || 'task',
 				priority: task.priority || 2
-			})) as TaskDetailResponse;
+			});
+			const parsed = TaskDetailResponseSchema.safeParse(raw);
+			if (!parsed.success) {
+				this.#state.error = 'Invalid task create response from API';
+				console.error('Task create validation failed:', parsed.error);
+				return null;
+			}
 
 			// Refresh the list after creating
 			await this.fetch();
 
-			return response.item || null;
+			return (parsed.data.item as Task) || null;
 		} catch (e) {
 			this.#state.error = e instanceof Error ? e.message : 'Failed to create task';
 			console.error('Failed to create task:', e);
@@ -166,25 +200,6 @@ class TasksStore {
 
 	getTask(id: string): Task | undefined {
 		return this.#state.items.find((t) => t.id === id);
-	}
-
-	/**
-	 * Legacy method for mock simulation - kept for demo mode
-	 */
-	addTask(task: Omit<Task, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'labels'>): Task {
-		const newTask: Task = {
-			...task,
-			id: crypto.randomUUID(),
-			status: 'pending',
-			priority: 2,
-			assignee: null,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-			labels: []
-		};
-
-		this.#state.items = [newTask, ...this.#state.items];
-		return newTask;
 	}
 
 	updateTask(id: string, updates: Partial<Task>) {

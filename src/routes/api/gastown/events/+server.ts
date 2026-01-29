@@ -109,6 +109,11 @@ export const GET: RequestHandler = async ({ request }) => {
 	let consecutiveFailures = 0;
 	const MAX_CONSECUTIVE_FAILURES = 10;
 
+	// Beads availability tracking — skip bd commands when no database exists
+	let beadsAvailable = false;
+	let lastBeadsCheck = 0;
+	const BEADS_CHECK_INTERVAL = 60_000; // Re-probe every 60 seconds
+
 	const encoder = new TextEncoder();
 
 	const stream = new ReadableStream({
@@ -338,7 +343,23 @@ export const GET: RequestHandler = async ({ request }) => {
 						);
 					}
 
+					// Beads availability probe — run before any bd commands
+					const now = Date.now();
+					if (now - lastBeadsCheck >= BEADS_CHECK_INTERVAL) {
+						lastBeadsCheck = now;
+						try {
+							const probeResult = await supervisor.bd(
+								['version'],
+								{ timeout: 5000 }
+							);
+							beadsAvailable = probeResult.success;
+						} catch {
+							beadsAvailable = false;
+						}
+					}
+
 					// Step 2: Fetch tasks
+					if (beadsAvailable) {
 					const tasksResult = await supervisor.bd<BdBead[]>(
 						['list', '--json'],
 						{ timeout: 30_000 }
@@ -378,8 +399,26 @@ export const GET: RequestHandler = async ({ request }) => {
 							);
 						}
 					}
+					} else {
+						// Beads unavailable — emit empty tasks with flag
+						const emptyTasksData = { tasks: [], total: 0, beadsUnavailable: true };
+						const tasksHash = JSON.stringify(emptyTasksData);
+						if (tasksHash !== prevTasksHash) {
+							prevTasksHash = tasksHash;
+							safeEnqueue(
+								encoder.encode(
+									formatSSE({
+										type: 'tasks',
+										data: emptyTasksData,
+										timestamp: new Date().toISOString()
+									})
+								)
+							);
+						}
+					}
 
 					// Step 3: Fetch convoys
+				if (beadsAvailable) {
 				try {
 					const convoysResult = await supervisor.bd<BdBead[]>(
 						['list', '--type=convoy', '--json'],
@@ -418,6 +457,23 @@ export const GET: RequestHandler = async ({ request }) => {
 					}
 				} catch {
 					// Convoy polling failure is non-fatal
+				}
+				} else {
+					// Beads unavailable — emit empty convoys with flag
+					const emptyConvoysData = { convoys: [], total: 0, beadsUnavailable: true };
+					const convoysHash = JSON.stringify(emptyConvoysData);
+					if (convoysHash !== prevConvoysHash) {
+						prevConvoysHash = convoysHash;
+						safeEnqueue(
+							encoder.encode(
+								formatSSE({
+									type: 'convoys',
+									data: emptyConvoysData,
+									timestamp: new Date().toISOString()
+								})
+							)
+						);
+					}
 				}
 
 				// Step 4: Fetch feed events
@@ -498,23 +554,37 @@ export const GET: RequestHandler = async ({ request }) => {
 						// Mail polling failure is non-fatal
 					}
 
-					// Step 6: Fetch merge queue
+					// Step 6: Fetch merge queue (per-rig)
 					try {
-						const mqResult = await supervisor.gt(
-							['mq', '--json'],
-							{ timeout: 15_000 }
-						);
+						if (rigNames.length > 0) {
+							const allMqItems: unknown[] = [];
 
-						if (mqResult.success && mqResult.data) {
-							const mqHash = JSON.stringify(mqResult.data);
+							for (const rigName of rigNames) {
+								try {
+									const mqResult = await supervisor.gt(
+										['mq', 'list', rigName, '--json'],
+										{ timeout: 15_000 }
+									);
+
+									if (mqResult.success && mqResult.data) {
+										const rigItems = Array.isArray(mqResult.data) ? mqResult.data : [];
+										for (const item of rigItems) {
+											allMqItems.push({ ...(item as Record<string, unknown>), rig: rigName });
+										}
+									}
+								} catch {
+									// Per-rig merge queue failure is non-fatal
+								}
+							}
+
+							const mqHash = JSON.stringify(allMqItems);
 							if (mqHash !== prevMergeQueueHash) {
 								prevMergeQueueHash = mqHash;
-								const items = Array.isArray(mqResult.data) ? mqResult.data : [];
 								safeEnqueue(
 									encoder.encode(
 										formatSSE({
 											type: 'mergequeue',
-											data: { items, total: items.length },
+											data: { items: allMqItems, total: allMqItems.length },
 											timestamp: new Date().toISOString()
 										})
 									)
@@ -526,6 +596,7 @@ export const GET: RequestHandler = async ({ request }) => {
 					}
 
 					// Step 7: Fetch gates
+					if (beadsAvailable) {
 					try {
 						const gatesResult = await supervisor.bd(
 							['gate', 'list', '--json'],
@@ -550,6 +621,23 @@ export const GET: RequestHandler = async ({ request }) => {
 						}
 					} catch {
 						// Gates polling failure is non-fatal
+					}
+					} else {
+						// Beads unavailable — emit empty gates with flag
+						const emptyGatesData = { items: [], total: 0, beadsUnavailable: true };
+						const gatesHash = JSON.stringify(emptyGatesData);
+						if (gatesHash !== prevGatesHash) {
+							prevGatesHash = gatesHash;
+							safeEnqueue(
+								encoder.encode(
+									formatSSE({
+										type: 'gates',
+										data: emptyGatesData,
+										timestamp: new Date().toISOString()
+									})
+								)
+							);
+						}
 					}
 
 					// Step 8: Fetch dogs

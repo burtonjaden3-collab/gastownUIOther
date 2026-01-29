@@ -16,6 +16,18 @@ import { ConcurrencyLimiter } from './concurrency-limiter';
 import { CircuitBreaker } from './circuit-breaker';
 
 /**
+ * Patterns in stderr that indicate a command-level error (bad flags, missing DB)
+ * rather than an infrastructure failure. These should NOT trip the circuit breaker.
+ */
+const COMMAND_ERROR_PATTERNS = [
+	'unknown flag',
+	'unknown command',
+	'no beads database found',
+	'error: unknown',
+	'not a valid command'
+];
+
+/**
  * Build the PATH environment variable that includes gt and bd CLI locations.
  */
 function getEnvWithPath(): NodeJS.ProcessEnv {
@@ -43,7 +55,7 @@ function getTownCwd(): string | undefined {
 export class ProcessSupervisor {
 	private readonly config: ProcessSupervisorConfig;
 	private readonly limiter: ConcurrencyLimiter;
-	private readonly circuitBreaker: CircuitBreaker;
+	private readonly breakers: Map<string, CircuitBreaker> = new Map();
 	private readonly activeProcesses: Map<string, ChildProcess> = new Map();
 	private totalSpawned = 0;
 	private destroyed = false;
@@ -51,10 +63,22 @@ export class ProcessSupervisor {
 	constructor(config: Partial<ProcessSupervisorConfig> = {}) {
 		this.config = { ...DEFAULT_CONFIG, ...config };
 		this.limiter = new ConcurrencyLimiter(this.config.maxConcurrency, this.config.maxQueueSize);
-		this.circuitBreaker = new CircuitBreaker(
-			this.config.circuitBreakerThreshold,
-			this.config.circuitBreakerResetTime
-		);
+	}
+
+	private getDomainKey(config: CLICommandConfig): string {
+		return `${config.command}-${config.args[0] || 'default'}`;
+	}
+
+	private getBreaker(domain: string): CircuitBreaker {
+		let breaker = this.breakers.get(domain);
+		if (!breaker) {
+			breaker = new CircuitBreaker(
+				this.config.circuitBreakerThreshold,
+				this.config.circuitBreakerResetTime
+			);
+			this.breakers.set(domain, breaker);
+		}
+		return breaker;
 	}
 
 	async execute<T = unknown>(commandConfig: CLICommandConfig): Promise<CLIResult<T>> {
@@ -69,11 +93,14 @@ export class ProcessSupervisor {
 			};
 		}
 
-		if (!this.circuitBreaker.canExecute()) {
+		const domain = this.getDomainKey(commandConfig);
+		const breaker = this.getBreaker(domain);
+
+		if (!breaker.canExecute()) {
 			return {
 				success: false,
 				data: null,
-				error: 'Circuit breaker is open - CLI is unavailable',
+				error: `Circuit breaker is open for domain ${domain} - CLI is unavailable`,
 				exitCode: -1,
 				duration: 0,
 				command: this.formatCommand(commandConfig)
@@ -81,11 +108,11 @@ export class ProcessSupervisor {
 		}
 
 		return this.limiter.execute(commandConfig, (cfg) =>
-			this.executeCommand<T>(cfg)
+			this.executeCommand<T>(cfg, breaker)
 		) as Promise<CLIResult<T>>;
 	}
 
-	private executeCommand<T>(config: CLICommandConfig): Promise<CLIResult<T>> {
+	private executeCommand<T>(config: CLICommandConfig, breaker: CircuitBreaker): Promise<CLIResult<T>> {
 		return new Promise((resolve) => {
 			const startTime = Date.now();
 			const timeout = config.timeout ?? this.config.defaultTimeout;
@@ -117,7 +144,7 @@ export class ProcessSupervisor {
 							} catch {
 								data = stdout as unknown as T;
 							}
-							this.circuitBreaker.recordSuccess();
+							breaker.recordSuccess();
 							resolve({
 								success: true,
 								data,
@@ -129,10 +156,22 @@ export class ProcessSupervisor {
 							return;
 						}
 
-						this.circuitBreaker.recordFailure();
-
 						const isTimeout = error.killed && error.message.includes('ETIMEDOUT');
 						const wasKilled = error.killed;
+
+						// Classify: command-level errors (bad flags, missing DB) should
+						// not trip the circuit breaker — only infrastructure failures should.
+						const stderrLower = (stderr || '').toLowerCase();
+						const isCommandError =
+							!wasKilled &&
+							COMMAND_ERROR_PATTERNS.some((p) => stderrLower.includes(p));
+
+						if (isCommandError) {
+							breaker.recordCommandError();
+						} else {
+							breaker.recordFailure();
+						}
+
 						const errorMessage = isTimeout
 							? `Command timed out after ${timeout}ms`
 							: wasKilled
@@ -161,7 +200,7 @@ export class ProcessSupervisor {
 						return;
 					}
 
-					this.circuitBreaker.recordSuccess();
+					breaker.recordSuccess();
 
 					let data: T | null = null;
 					try {
@@ -185,7 +224,7 @@ export class ProcessSupervisor {
 
 			child.on('error', (err) => {
 				this.activeProcesses.delete(processId);
-				this.circuitBreaker.recordFailure();
+				breaker.recordFailure();
 				resolve({
 					success: false,
 					data: null,
@@ -220,16 +259,29 @@ export class ProcessSupervisor {
 
 	getStats(): {
 		queue: { queued: number; active: number; maxConcurrency: number };
-		circuitBreaker: ReturnType<CircuitBreaker['getStats']>;
+		circuitBreaker: Record<string, ReturnType<CircuitBreaker['getStats']>>;
 	} {
+		const breakerStats: Record<string, ReturnType<CircuitBreaker['getStats']>> = {};
+		for (const [domain, breaker] of this.breakers) {
+			breakerStats[domain] = breaker.getStats();
+		}
 		return {
 			queue: this.limiter.getStats(),
-			circuitBreaker: this.circuitBreaker.getStats()
+			circuitBreaker: breakerStats
 		};
 	}
 
-	resetCircuitBreaker(): void {
-		this.circuitBreaker.reset();
+	resetCircuitBreaker(domain?: string): void {
+		if (domain) {
+			const breaker = this.breakers.get(domain);
+			if (breaker) {
+				breaker.reset();
+			}
+		} else {
+			for (const breaker of this.breakers.values()) {
+				breaker.reset();
+			}
+		}
 	}
 
 	getProcessStats(): { activeProcesses: number; totalSpawned: number } {

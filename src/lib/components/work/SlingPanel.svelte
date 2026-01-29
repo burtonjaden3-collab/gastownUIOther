@@ -3,6 +3,7 @@
 	import Badge from '$lib/components/core/Badge.svelte';
 	import { tasksStore } from '$lib/stores/tasks.svelte';
 	import { rigsStore } from '$lib/stores/rigs.svelte';
+	import { convoysStore } from '$lib/stores/convoys.svelte';
 	import SlingTargetPicker from './SlingTargetPicker.svelte';
 	import { cn } from '$lib/utils/cn';
 
@@ -38,10 +39,12 @@
 		selectedId ? pendingTasks.find(t => t.id === selectedId) : undefined
 	);
 
-	function handleSlung() {
-		const remaining = pendingTasks.filter(t => t.id !== selectedId);
+	async function handleSlung() {
+		const slungId = selectedId;
+		await tasksStore.fetch();
+		await convoysStore.fetch();
+		const remaining = pendingTasks.filter(t => t.id !== slungId);
 		selectedId = remaining.length > 0 ? remaining[0].id : null;
-		tasksStore.fetch();
 	}
 </script>
 
